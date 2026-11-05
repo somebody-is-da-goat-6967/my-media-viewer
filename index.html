@@ -287,7 +287,7 @@
   let timer = null, spinTimer = null, token = 0, errStreak = 0, idleTimer = null, toastTimer = null;
   let cur = null, curEl = null, muted = true;
   let wallMode = false, wallPage = 0, companionOn = false, companionCurrent = null;
-  let splitImageIndex = 0, imageWheelAt = 0, imageSwipeStart = null;
+  let splitImageIndex = 0, imageWheelDelta = 0, imageWheelTimer = null, imageSwipeStart = null;
   const imgCache = new Map();
   let vidPre = null;
   let view = { s: 1, x: 0, y: 0 };
@@ -728,14 +728,18 @@
   stage.addEventListener('pointerup', endPtr);
   stage.addEventListener('pointercancel', endPtr);
 
-  $('#companionImage').addEventListener('wheel', e => {
-    if (!companionOn) return;
-    const now = performance.now();
-    if (now - imageWheelAt < 220) return;
-    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? (e.deltaX || e.deltaY) : e.deltaY);
-    if (Math.abs(delta) < 8) return;
-    e.preventDefault(); imageWheelAt = now; stepSplitImage(delta > 0 ? 1 : -1);
-  }, { passive: false });
+  stage.addEventListener('wheel', e => {
+    if (!companionOn || e.ctrlKey || !(e.target.closest && e.target.closest('#companionImage'))) return;
+    e.preventDefault();
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    imageWheelDelta += delta;
+    clearTimeout(imageWheelTimer);
+    imageWheelTimer = setTimeout(() => {
+      const direction = Math.sign(imageWheelDelta);
+      imageWheelDelta = 0;
+      if (direction) stepSplitImage(direction);
+    }, 90);
+  }, { capture: true, passive: false });
   $('#companionImage').addEventListener('pointerdown', e => {
     if (e.target.closest && e.target.closest('button')) return;
     imageSwipeStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
