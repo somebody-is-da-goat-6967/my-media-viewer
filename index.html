@@ -46,14 +46,14 @@
     touch-action: none; user-select: none; -webkit-user-select: none;
   }
   #stage.wall-mode { touch-action: pan-y; user-select: auto; -webkit-user-select: auto; overflow: auto; padding: 18px; }
-  #stage.wall-mode.companion-on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 32%); gap: 16px; overflow: hidden; }
+  #stage.wall-mode.companion-on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 46%); gap: 16px; overflow: hidden; }
   #wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-width, 190px), 1fr)); gap: 12px; align-content: start; min-height: 100%; }
   #stage.companion-on #wall { min-height: 0; height: 100%; overflow: auto; align-content: start; padding: 2px 6px 2px 2px; }
   #stage.companion-on .tile { align-self: start; }
-  #companion { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; align-self: start; position: sticky; top: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  #companion { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 12px; align-self: stretch; position: sticky; top: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
   .companion-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .companion-heading strong { font-size: 14px; }
-  #companionVideo { width: 100%; max-height: min(42vh, 360px); aspect-ratio: 16 / 9; background: #050607; border-radius: 8px; object-fit: contain; }
+  #companionVideo { display: block; flex: 1 1 auto; min-height: 240px; width: 100%; max-height: min(76vh, 760px); aspect-ratio: 16 / 9; background: #050607; border-radius: 8px; object-fit: contain; }
   #companionName { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .companion-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .loop-choice { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 7px; cursor: pointer; }
@@ -151,7 +151,8 @@
     #stage.wall-mode.companion-on { display: flex; flex-direction: column; overflow: auto; }
     #stage.companion-on #wall { height: auto; overflow: visible; }
     #companion { position: relative; order: -1; }
-    #companionVideo { max-height: 34vh; }
+    #companion { height: auto; }
+    #companionVideo { flex: 0 0 auto; height: min(56vh, 560px); min-height: 220px; max-height: min(56vh, 560px); }
     .bottom { flex-direction: column; align-items: stretch; gap: 4px; }
     .actions { justify-content: center; }
   }
@@ -180,7 +181,7 @@
   <div class="top-tools">
     <span class="brand">Media library</span>
     <button class="btn" id="layout" aria-pressed="false" title="Switch between focus and wall view">▦ Wall view</button>
-    <button class="btn" id="companionToggle" aria-pressed="false" title="Keep a video playing beside the image grid" hidden>▸ Video companion</button>
+    <button class="btn" id="companionToggle" aria-pressed="false" title="Keep a video playing beside the image grid">▸ Video companion</button>
     <div id="wallPager" hidden>
       <select id="tileSize" aria-label="Tile size" title="Tile size"><option value="16">Compact</option><option value="12" selected>Comfortable</option><option value="8">Large</option></select>
       <button class="ib" id="wallPrev" aria-label="Previous page">‹</button>
@@ -312,6 +313,7 @@
     if (companionOn && !companionItems().some(i => i.url === companionCurrent?.url)) advanceCompanion();
   }
   function setCompanion(on) {
+    if (on && !wallMode) setMode(true);
     companionOn = on;
     $('#stage').classList.toggle('companion-on', on);
     $('#companion').hidden = !on;
@@ -341,6 +343,7 @@
       const tile = document.createElement('article');
       tile.className = 'tile'; tile.tabIndex = 0; tile.setAttribute('aria-current', String(cur?.url === item.url));
       tile.setAttribute('aria-label', `${item.type === 'video' ? 'Video' : 'Image'}: ${item.name}`);
+      tile.title = 'Open in Focus view';
       const media = document.createElement(item.type === 'video' ? 'video' : 'img');
       media.src = item.url;
       if (item.type === 'image') { media.alt = item.name; media.loading = 'lazy'; media.decoding = 'async'; }
@@ -379,7 +382,6 @@
     $('#layout').textContent = wallMode ? '▣ Focus view' : '▦ Wall view';
     $('.info').hidden = wallMode;
     ['prev', 'next', 'star', 'play', 'interval', 'open'].forEach(id => { $(`#${id}`).hidden = wallMode; });
-    $('#companionToggle').hidden = !wallMode;
     if (wallMode) { clearTimeout(timer); renderWall(); }
     else { setCompanion(false); $('#wall').replaceChildren(); if (cur) { $('#msg').hidden = true; schedule(); } }
   }
