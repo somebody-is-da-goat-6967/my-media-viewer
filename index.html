@@ -63,6 +63,12 @@
   #splitImage { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
   #splitImageName { position: absolute; left: 14px; right: 14px; bottom: 12px; text-align: center; color: white; font-size: 13px; text-shadow: 0 1px 5px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   #splitImageCount { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 4px 9px; border-radius: 20px; background: rgba(0,0,0,.55); color: white; font-size: 12px; pointer-events: none; }
+  #splitTools { position: absolute; z-index: 3; top: 10px; right: 10px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 9px; background: rgba(0,0,0,.62); color: white; }
+  #splitTools select { max-width: 96px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 5px; font-size: 12px; }
+  #splitRandomLabel { display: flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  #splitRandomLabel input { accent-color: var(--focus); }
+  #splitPlay { min-width: 70px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; background: var(--panel); color: white; cursor: pointer; font-size: 12px; }
+  #splitPlay[aria-pressed="true"] { color: #a9d1ff; }
   .split-nav { position: absolute; z-index: 2; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; border: 0; border-radius: 8px; color: white; background: rgba(0,0,0,.42); font-size: 36px; line-height: 1; cursor: pointer; }
   .split-nav:hover { background: rgba(0,0,0,.72); }
   #splitPrev { left: 12px; }
@@ -160,6 +166,7 @@
     #stage.wall-mode.companion-on { display: flex; flex-direction: column; overflow: auto; }
     #companion { flex: 0 0 48vh; min-height: 240px; order: 0; }
     #companionImage { flex: 0 0 62vh; min-height: 300px; }
+    #splitTools { left: 8px; right: 8px; justify-content: center; flex-wrap: wrap; }
     .bottom { flex-direction: column; align-items: stretch; gap: 4px; }
     .actions { justify-content: center; }
   }
@@ -205,6 +212,13 @@
     <div id="splitImageCount"></div>
     <div id="splitImageName"></div>
     <div id="splitEmpty" hidden>No images in this filter.</div>
+    <div id="splitTools" aria-label="Image autoplay controls">
+      <button id="splitPlay" type="button" aria-pressed="false" title="Autoplay images">Play</button>
+      <label id="splitRandomLabel"><input type="checkbox" id="splitRandom"> Random</label>
+      <select id="splitInterval" aria-label="Image autoplay interval" title="Time per image">
+        <option value="3">3 sec</option><option value="5" selected>5 sec</option><option value="10">10 sec</option><option value="30">30 sec</option>
+      </select>
+    </div>
     <button class="split-nav" id="splitPrev" type="button" aria-label="Previous image" title="Previous image (Left arrow)">‹</button>
     <button class="split-nav" id="splitNext" type="button" aria-label="Next image" title="Next image (Right arrow)">›</button>
   </section>
@@ -288,6 +302,8 @@
   let cur = null, curEl = null, muted = true;
   let wallMode = false, wallPage = 0, companionOn = false, companionCurrent = null;
   let splitImageIndex = 0, imageWheelDelta = 0, imageWheelTimer = null, imageSwipeStart = null;
+  let splitAuto = false, splitRandom = store.get('mv.splitRandom', false);
+  let splitInterval = Number(store.get('mv.splitInterval', 5)) || 5, splitTimer = null;
   const imgCache = new Map();
   let vidPre = null;
   let view = { s: 1, x: 0, y: 0 };
@@ -320,7 +336,10 @@
     img.hidden = !has;
     $('#splitPrev').hidden = !has;
     $('#splitNext').hidden = !has;
+    $('#splitPlay').disabled = !has;
     if (!has) {
+      splitAuto = false; clearTimeout(splitTimer);
+      $('#splitPlay').setAttribute('aria-pressed', 'false'); $('#splitPlay').textContent = 'Play';
       img.removeAttribute('src'); $('#splitImageName').textContent = '';
       $('#splitImageCount').textContent = '0 / 0'; return;
     }
@@ -336,8 +355,27 @@
   function stepSplitImage(dir) {
     const items = splitImageItems();
     if (!items.length) return;
-    splitImageIndex = (splitImageIndex + dir + items.length) % items.length;
+    if (splitRandom && items.length > 1) {
+      let next = splitImageIndex;
+      while (next === splitImageIndex) next = Math.floor(Math.random() * items.length);
+      splitImageIndex = next;
+    } else splitImageIndex = (splitImageIndex + dir + items.length) % items.length;
     renderSplitImage();
+    scheduleSplitAutoplay();
+  }
+  function scheduleSplitAutoplay() {
+    clearTimeout(splitTimer);
+    if (splitAuto && companionOn && splitImageItems().length) {
+      splitTimer = setTimeout(() => stepSplitImage(1), splitInterval * 1000);
+    }
+  }
+  function toggleSplitAutoplay() {
+    splitAuto = !splitAuto;
+    const b = $('#splitPlay');
+    b.setAttribute('aria-pressed', String(splitAuto));
+    b.textContent = splitAuto ? 'Pause' : 'Play';
+    b.title = splitAuto ? 'Pause image autoplay' : 'Autoplay images';
+    scheduleSplitAutoplay();
   }
   function advanceCompanion() {
     const videos = companionItems(), player = $('#companionVideo');
@@ -361,7 +399,7 @@
     if (on && !companionOn) {
       const items = splitImageItems();
       const currentIndex = items.findIndex(i => i.url === cur?.url);
-      splitImageIndex = currentIndex >= 0 ? currentIndex : 0;
+      splitImageIndex = splitRandom && items.length ? Math.floor(Math.random() * items.length) : (currentIndex >= 0 ? currentIndex : 0);
     }
     companionOn = on;
     $('#stage').classList.toggle('companion-on', on);
@@ -370,8 +408,8 @@
     $('#wall').hidden = !wallMode || on;
     $('#companionToggle').setAttribute('aria-pressed', String(on));
     $('#companionToggle').textContent = on ? 'Hide video' : 'Video + images';
-    if (on) { syncCompanion(); if (companionCurrent) $('#companionVideo').play().catch(() => {}); renderSplitImage(); }
-    else { $('#companionVideo').pause(); renderWall(); }
+    if (on) { syncCompanion(); if (companionCurrent) $('#companionVideo').play().catch(() => {}); renderSplitImage(); scheduleSplitAutoplay(); }
+    else { splitAuto = false; clearTimeout(splitTimer); $('#splitPlay').setAttribute('aria-pressed', 'false'); $('#splitPlay').textContent = 'Play'; $('#companionVideo').pause(); renderWall(); }
   }
   function renderWall() {
     if (!wallMode || companionOn) return;
@@ -622,7 +660,7 @@
   function setFilter(f) {
     filter = f; store.set('mv.filter', f);
     pool = compute(); deck = []; history = []; pos = -1;
-    wallPage = 0; updateSeg(); go(1); renderWall(); syncCompanion(); renderSplitImage();
+    wallPage = 0; updateSeg(); go(1); renderWall(); syncCompanion(); renderSplitImage(); scheduleSplitAutoplay();
   }
   function toggleStar() {
     if (!cur) return;
@@ -812,6 +850,12 @@
   $('#companionVideo').addEventListener('ended', () => { if (!$('#companionLoop').checked) advanceCompanion(); });
   $('#splitPrev').onclick = () => stepSplitImage(-1);
   $('#splitNext').onclick = () => stepSplitImage(1);
+  $('#splitPlay').onclick = toggleSplitAutoplay;
+  $('#splitRandom').checked = splitRandom;
+  $('#splitRandom').onchange = e => { splitRandom = e.target.checked; store.set('mv.splitRandom', splitRandom); };
+  $('#splitInterval').value = String(splitInterval);
+  if ($('#splitInterval').value !== String(splitInterval)) { splitInterval = 5; $('#splitInterval').value = '5'; }
+  $('#splitInterval').onchange = e => { splitInterval = Number(e.target.value); store.set('mv.splitInterval', splitInterval); scheduleSplitAutoplay(); };
   $('#tileSize').onchange = () => { wallPage = 0; renderWall(); };
   $('#wallPrev').onclick = () => { wallPage--; renderWall(); };
   $('#wallNext').onclick = () => { wallPage++; renderWall(); };
