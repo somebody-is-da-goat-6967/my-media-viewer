@@ -46,7 +46,19 @@
     touch-action: none; user-select: none; -webkit-user-select: none;
   }
   #stage.wall-mode { touch-action: pan-y; user-select: auto; -webkit-user-select: auto; overflow: auto; padding: 18px; }
+  #stage.wall-mode.companion-on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 32%); gap: 16px; overflow: hidden; }
   #wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-width, 190px), 1fr)); gap: 12px; align-content: start; min-height: 100%; }
+  #stage.companion-on #wall { min-height: 0; height: 100%; overflow: auto; align-content: start; padding: 2px 6px 2px 2px; }
+  #stage.companion-on .tile { align-self: start; }
+  #companion { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; align-self: start; position: sticky; top: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .companion-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .companion-heading strong { font-size: 14px; }
+  #companionVideo { width: 100%; max-height: min(42vh, 360px); aspect-ratio: 16 / 9; background: #050607; border-radius: 8px; object-fit: contain; }
+  #companionName { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .companion-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .loop-choice { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .loop-choice input { accent-color: var(--focus); }
+  #companionNote { margin: 0; color: var(--muted); font-size: 12px; }
   .tile { position: relative; min-width: 0; aspect-ratio: 1 / 1; background: #121417; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; }
   .tile:hover { border-color: #555b65; }
   .tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -59,6 +71,8 @@
   .tile[aria-current="true"] { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
   .wall-empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 15vh 20px; }
   #wallPager { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  #wallPager { justify-content: flex-end; }
+  body.wall .brand { display: none; }
   #wallPager .ib { width: 34px; height: 34px; }
   #tileSize { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
   body.wall .bottom { border-top: 1px solid var(--line); }
@@ -130,9 +144,14 @@
 
   @media (max-width: 640px) {
     .top { align-items: flex-start; flex-direction: column; gap: 8px; }
-    .top-tools { width: 100%; justify-content: space-between; }
+    .top-tools { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+    #wallPager { flex: 1 0 100%; justify-content: center; }
     #stage.wall-mode { padding: 10px; }
     #wall { gap: 8px; }
+    #stage.wall-mode.companion-on { display: flex; flex-direction: column; overflow: auto; }
+    #stage.companion-on #wall { height: auto; overflow: visible; }
+    #companion { position: relative; order: -1; }
+    #companionVideo { max-height: 34vh; }
     .bottom { flex-direction: column; align-items: stretch; gap: 4px; }
     .actions { justify-content: center; }
   }
@@ -161,6 +180,7 @@
   <div class="top-tools">
     <span class="brand">Media library</span>
     <button class="btn" id="layout" aria-pressed="false" title="Switch between focus and wall view">▦ Wall view</button>
+    <button class="btn" id="companionToggle" aria-pressed="false" title="Keep a video playing beside the image grid" hidden>▸ Video companion</button>
     <div id="wallPager" hidden>
       <select id="tileSize" aria-label="Tile size" title="Tile size"><option value="16">Compact</option><option value="12" selected>Comfortable</option><option value="8">Large</option></select>
       <button class="ib" id="wallPrev" aria-label="Previous page">‹</button>
@@ -172,6 +192,16 @@
 
 <main id="stage">
   <div id="wall" hidden></div>
+  <aside id="companion" hidden aria-label="Video companion">
+    <div class="companion-heading"><strong>Now playing</strong><span class="brand">VIDEO</span></div>
+    <video id="companionVideo" controls playsinline preload="metadata" muted></video>
+    <div id="companionName">Choose a video</div>
+    <div class="companion-controls">
+      <label class="loop-choice"><input type="checkbox" id="companionLoop"> Loop this video</label>
+      <button class="btn" id="companionNext" type="button">Next video</button>
+    </div>
+    <p id="companionNote">Playing muted. Use the video controls to turn sound on.</p>
+  </aside>
   <div id="msg" hidden></div>
   <div id="spinner" hidden></div>
   <div id="toast" role="status"></div>
@@ -240,7 +270,7 @@
   let slideshow = false, interval = Number(store.get('mv.interval', 5)) || 5;
   let timer = null, spinTimer = null, token = 0, errStreak = 0, idleTimer = null, toastTimer = null;
   let cur = null, curEl = null, muted = true;
-  let wallMode = false, wallPage = 0;
+  let wallMode = false, wallPage = 0, companionOn = false, companionCurrent = null;
   const imgCache = new Map();
   let vidPre = null;
   let view = { s: 1, x: 0, y: 0 };
@@ -256,7 +286,40 @@
       filter === 'starred' ? stars.has(i.url) :
       i.type === (filter === 'images' ? 'image' : 'video'));
   }
-  function wallItems() { return compute(); }
+  function wallItems() {
+    const items = compute();
+    return companionOn ? items.filter(i => i.type === 'image') : items;
+  }
+  function companionItems() {
+    const videos = all.filter(i => i.type === 'video');
+    return filter === 'starred' ? videos.filter(i => stars.has(i.url)) : videos;
+  }
+  function advanceCompanion() {
+    const videos = companionItems(), player = $('#companionVideo');
+    if (!videos.length) {
+      player.pause(); player.removeAttribute('src'); player.load(); companionCurrent = null;
+      $('#companionName').textContent = filter === 'starred' ? 'Star a video to play it here' : 'No videos in this library';
+      return;
+    }
+    const oldIndex = videos.findIndex(i => i.url === companionCurrent?.url);
+    const next = oldIndex < 0 ? Math.floor(Math.random() * videos.length) : (oldIndex + 1) % videos.length;
+    companionCurrent = videos[next]; player.pause(); player.src = companionCurrent.url;
+    player.loop = $('#companionLoop').checked; player.muted = true;
+    $('#companionName').textContent = companionCurrent.name;
+    player.load(); player.play().catch(() => {});
+  }
+  function syncCompanion() {
+    if (companionOn && !companionItems().some(i => i.url === companionCurrent?.url)) advanceCompanion();
+  }
+  function setCompanion(on) {
+    companionOn = on;
+    $('#stage').classList.toggle('companion-on', on);
+    $('#companion').hidden = !on;
+    $('#companionToggle').setAttribute('aria-pressed', String(on));
+    $('#companionToggle').textContent = on ? '▸ Hide companion' : '▸ Video companion';
+    if (on) { syncCompanion(); if (companionCurrent) $('#companionVideo').play().catch(() => {}); renderWall(); }
+    else $('#companionVideo').pause();
+  }
   function renderWall() {
     if (!wallMode) return;
     const items = wallItems(), pageSize = Number($('#tileSize').value) || 12;
@@ -294,7 +357,7 @@
       star.addEventListener('click', e => {
         e.stopPropagation();
         if (stars.has(item.url)) stars.delete(item.url); else stars.add(item.url);
-        store.set('mv.stars', [...stars]); updateSeg(); renderWall();
+        store.set('mv.stars', [...stars]); updateSeg(); renderWall(); syncCompanion();
       });
       const openItem = () => {
         const idx = pool.findIndex(i => i.url === item.url);
@@ -316,8 +379,9 @@
     $('#layout').textContent = wallMode ? '▣ Focus view' : '▦ Wall view';
     $('.info').hidden = wallMode;
     ['prev', 'next', 'star', 'play', 'interval', 'open'].forEach(id => { $(`#${id}`).hidden = wallMode; });
+    $('#companionToggle').hidden = !wallMode;
     if (wallMode) { clearTimeout(timer); renderWall(); }
-    else { $('#wall').replaceChildren(); if (cur) { $('#msg').hidden = true; schedule(); } }
+    else { setCompanion(false); $('#wall').replaceChildren(); if (cur) { $('#msg').hidden = true; schedule(); } }
   }
   function shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) {
@@ -505,7 +569,7 @@
   function setFilter(f) {
     filter = f; store.set('mv.filter', f);
     pool = compute(); deck = []; history = []; pos = -1;
-    wallPage = 0; updateSeg(); go(1); renderWall();
+    wallPage = 0; updateSeg(); go(1); renderWall(); syncCompanion();
   }
   function toggleStar() {
     if (!cur) return;
@@ -513,7 +577,7 @@
     if (stars.has(u)) stars.delete(u); else stars.add(u);
     store.set('mv.stars', [...stars]);
     if (filter === 'starred') { pool = compute(); deck = deck.filter(i => stars.has(i.url)); }
-    updateSeg(); ui(); renderWall();
+    updateSeg(); ui(); renderWall(); syncCompanion();
     toast(stars.has(u) ? 'Starred' : 'Star removed');
   }
   function toggleSlideshow() {
@@ -661,6 +725,10 @@
   $('#play').onclick = toggleSlideshow;
   $('#fs').onclick = toggleFS;
   $('#layout').onclick = () => setMode(!wallMode);
+  $('#companionToggle').onclick = () => setCompanion(!companionOn);
+  $('#companionNext').onclick = advanceCompanion;
+  $('#companionLoop').onchange = e => { $('#companionVideo').loop = e.target.checked; };
+  $('#companionVideo').addEventListener('ended', () => { if (!$('#companionLoop').checked) advanceCompanion(); });
   $('#tileSize').onchange = () => { wallPage = 0; renderWall(); };
   $('#wallPrev').onclick = () => { wallPage--; renderWall(); };
   $('#wallNext').onclick = () => { wallPage++; renderWall(); };
@@ -711,6 +779,7 @@
       pool = compute();
       updateSeg();
       go(1);
+      syncCompanion();
     })
     .catch(() => showError('Could not load manifest.json. Make sure it is in the same folder as this page.'));
 })();
