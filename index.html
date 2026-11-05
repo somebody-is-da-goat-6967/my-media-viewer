@@ -46,11 +46,11 @@
     touch-action: none; user-select: none; -webkit-user-select: none;
   }
   #stage.wall-mode { touch-action: pan-y; user-select: auto; -webkit-user-select: auto; overflow: auto; padding: 18px; }
-  #stage.wall-mode.companion-on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 46%); gap: 16px; overflow: hidden; }
+  #stage.wall-mode.companion-on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "player images"; gap: 16px; overflow: hidden; }
   #wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-width, 190px), 1fr)); gap: 12px; align-content: start; min-height: 100%; }
-  #stage.companion-on #wall { min-height: 0; height: 100%; overflow: auto; align-content: start; padding: 2px 6px 2px 2px; }
+  #stage.companion-on #wall { grid-area: images; min-width: 0; min-height: 0; height: 100%; overflow: auto; align-content: start; padding: 2px 6px 2px 2px; }
   #stage.companion-on .tile { align-self: start; }
-  #companion { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 12px; align-self: stretch; position: sticky; top: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  #companion { grid-area: player; min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 12px; align-self: stretch; position: sticky; top: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
   .companion-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .companion-heading strong { font-size: 14px; }
   #companionVideo { display: block; flex: 1 1 auto; min-height: 240px; width: 100%; max-height: min(76vh, 760px); aspect-ratio: 16 / 9; background: #050607; border-radius: 8px; object-fit: contain; }
@@ -181,7 +181,7 @@
   <div class="top-tools">
     <span class="brand">Media library</span>
     <button class="btn" id="layout" aria-pressed="false" title="Switch between focus and wall view">▦ Wall view</button>
-    <button class="btn" id="companionToggle" aria-pressed="false" title="Keep a video playing beside the image grid">▸ Video companion</button>
+    <button class="btn" id="companionToggle" aria-pressed="false" title="Show a video on the left and a scrollable image gallery on the right">Video + images</button>
     <div id="wallPager" hidden>
       <select id="tileSize" aria-label="Tile size" title="Tile size"><option value="16">Compact</option><option value="12" selected>Comfortable</option><option value="8">Large</option></select>
       <button class="ib" id="wallPrev" aria-label="Previous page">‹</button>
@@ -318,7 +318,7 @@
     $('#stage').classList.toggle('companion-on', on);
     $('#companion').hidden = !on;
     $('#companionToggle').setAttribute('aria-pressed', String(on));
-    $('#companionToggle').textContent = on ? '▸ Hide companion' : '▸ Video companion';
+    $('#companionToggle').textContent = on ? 'Hide video' : 'Video + images';
     if (on) { syncCompanion(); if (companionCurrent) $('#companionVideo').play().catch(() => {}); renderWall(); }
     else $('#companionVideo').pause();
   }
