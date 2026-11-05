@@ -31,6 +31,9 @@
   }
   .top { padding-top: max(10px, env(safe-area-inset-top)); }
   .bottom { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .top { justify-content: space-between; }
+  .brand { color: var(--muted); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+  .top-tools { display: flex; align-items: center; gap: 8px; }
 
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg button { background: none; border: 0; padding: 7px 12px; cursor: pointer; color: var(--muted); }
@@ -42,6 +45,25 @@
     position: relative; flex: 1; min-height: 0; overflow: hidden;
     touch-action: none; user-select: none; -webkit-user-select: none;
   }
+  #stage.wall-mode { touch-action: pan-y; user-select: auto; -webkit-user-select: auto; overflow: auto; padding: 18px; }
+  #wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-width, 190px), 1fr)); gap: 12px; align-content: start; min-height: 100%; }
+  .tile { position: relative; min-width: 0; aspect-ratio: 1 / 1; background: #121417; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; }
+  .tile:hover { border-color: #555b65; }
+  .tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .tile img, .tile video { display: block; width: 100%; height: 100%; object-fit: contain; background: #090a0b; }
+  .tile video { cursor: default; }
+  .tile-name { position: absolute; inset: auto 0 0; padding: 24px 9px 8px; background: linear-gradient(transparent, rgba(0,0,0,.82)); color: white; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  .tile-type { position: absolute; top: 8px; left: 8px; border-radius: 5px; padding: 2px 6px; background: rgba(0,0,0,.65); color: white; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; pointer-events: none; }
+  .tile-star { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border: 0; border-radius: 7px; background: rgba(0,0,0,.55); color: #fff; cursor: pointer; font-size: 18px; }
+  .tile-star[aria-pressed="true"] { color: var(--star); }
+  .tile[aria-current="true"] { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+  .wall-empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 15vh 20px; }
+  #wallPager { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  #wallPager .ib { width: 34px; height: 34px; }
+  #tileSize { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  body.wall .bottom { border-top: 1px solid var(--line); }
+  body.wall #stage { background-image: radial-gradient(#202329 1px, transparent 1px); background-size: 18px 18px; }
+  body.wall #stage > .media { display: none; }
   #stage.zoomed { cursor: grab; }
   #stage.zoomed:active { cursor: grabbing; }
   .media {
@@ -107,6 +129,10 @@
   .btn:hover { border-color: var(--muted); }
 
   @media (max-width: 640px) {
+    .top { align-items: flex-start; flex-direction: column; gap: 8px; }
+    .top-tools { width: 100%; justify-content: space-between; }
+    #stage.wall-mode { padding: 10px; }
+    #wall { gap: 8px; }
     .bottom { flex-direction: column; align-items: stretch; gap: 4px; }
     .actions { justify-content: center; }
   }
@@ -132,9 +158,20 @@
     <button data-f="videos" aria-pressed="false">Videos<small>0</small></button>
     <button data-f="starred" aria-pressed="false">Starred<small>0</small></button>
   </div>
+  <div class="top-tools">
+    <span class="brand">Media library</span>
+    <button class="btn" id="layout" aria-pressed="false" title="Switch between focus and wall view">▦ Wall view</button>
+    <div id="wallPager" hidden>
+      <select id="tileSize" aria-label="Tile size" title="Tile size"><option value="16">Compact</option><option value="12" selected>Comfortable</option><option value="8">Large</option></select>
+      <button class="ib" id="wallPrev" aria-label="Previous page">‹</button>
+      <span id="wallPage">1 / 1</span>
+      <button class="ib" id="wallNext" aria-label="Next page">›</button>
+    </div>
+  </div>
 </div>
 
 <main id="stage">
+  <div id="wall" hidden></div>
   <div id="msg" hidden></div>
   <div id="spinner" hidden></div>
   <div id="toast" role="status"></div>
@@ -162,6 +199,7 @@
 <dialog id="help">
   <h2>Shortcuts</h2>
   <dl>
+    <dt><kbd>G</kbd></dt><dd>Switch between focus and wall view</dd>
     <dt><kbd>Right</kbd> <kbd>Space</kbd> <kbd>N</kbd></dt><dd>Next</dd>
     <dt><kbd>Left</kbd> <kbd>P</kbd></dt><dd>Previous</dd>
     <dt><kbd>S</kbd></dt><dd>Star or unstar</dd>
@@ -202,6 +240,7 @@
   let slideshow = false, interval = Number(store.get('mv.interval', 5)) || 5;
   let timer = null, spinTimer = null, token = 0, errStreak = 0, idleTimer = null, toastTimer = null;
   let cur = null, curEl = null, muted = true;
+  let wallMode = false, wallPage = 0;
   const imgCache = new Map();
   let vidPre = null;
   let view = { s: 1, x: 0, y: 0 };
@@ -216,6 +255,69 @@
       filter === 'all' ? true :
       filter === 'starred' ? stars.has(i.url) :
       i.type === (filter === 'images' ? 'image' : 'video'));
+  }
+  function wallItems() { return compute(); }
+  function renderWall() {
+    if (!wallMode) return;
+    const items = wallItems(), pageSize = Number($('#tileSize').value) || 12;
+    const pages = Math.max(1, Math.ceil(items.length / pageSize));
+    wallPage = Math.max(0, Math.min(wallPage, pages - 1));
+    const start = wallPage * pageSize, slice = items.slice(start, start + pageSize);
+    const wall = $('#wall'); wall.querySelectorAll('video').forEach(v => v.pause()); wall.replaceChildren();
+    wall.style.setProperty('--tile-width', `${Math.round(290 - pageSize * 5)}px`);
+    $('#wallPage').textContent = `${items.length ? start + 1 : 0}–${Math.min(start + pageSize, items.length)} of ${items.length}`;
+    $('#wallPrev').disabled = wallPage === 0;
+    $('#wallNext').disabled = wallPage >= pages - 1;
+    if (!slice.length) {
+      const empty = document.createElement('div'); empty.className = 'wall-empty';
+      empty.textContent = filter === 'starred' ? 'No starred files yet. Star a tile to collect it here.' : 'Nothing to show for this filter.';
+      wall.append(empty); return;
+    }
+    let autoplayUsed = false;
+    for (const item of slice) {
+      const tile = document.createElement('article');
+      tile.className = 'tile'; tile.tabIndex = 0; tile.setAttribute('aria-current', String(cur?.url === item.url));
+      tile.setAttribute('aria-label', `${item.type === 'video' ? 'Video' : 'Image'}: ${item.name}`);
+      const media = document.createElement(item.type === 'video' ? 'video' : 'img');
+      media.src = item.url;
+      if (item.type === 'image') { media.alt = item.name; media.loading = 'lazy'; media.decoding = 'async'; }
+      else {
+        media.controls = true; media.playsInline = true; media.preload = 'metadata'; media.muted = true;
+        if (!autoplayUsed) { autoplayUsed = true; media.autoplay = true; media.loop = true; media.addEventListener('canplay', () => media.play().catch(() => {}), { once: true }); }
+        media.addEventListener('click', e => e.stopPropagation());
+      }
+      const type = document.createElement('span'); type.className = 'tile-type'; type.textContent = item.type;
+      const name = document.createElement('span'); name.className = 'tile-name'; name.textContent = item.name;
+      const star = document.createElement('button'); star.className = 'tile-star'; star.type = 'button';
+      star.setAttribute('aria-label', stars.has(item.url) ? `Unstar ${item.name}` : `Star ${item.name}`);
+      star.setAttribute('aria-pressed', String(stars.has(item.url))); star.textContent = '★';
+      star.addEventListener('click', e => {
+        e.stopPropagation();
+        if (stars.has(item.url)) stars.delete(item.url); else stars.add(item.url);
+        store.set('mv.stars', [...stars]); updateSeg(); renderWall();
+      });
+      const openItem = () => {
+        const idx = pool.findIndex(i => i.url === item.url);
+        if (idx >= 0) { history = [item]; pos = 0; deck = []; setMode(false); render(item); }
+      };
+      tile.addEventListener('click', openItem);
+      tile.addEventListener('keydown', e => { if (e.key === 'Enter') openItem(); });
+      tile.append(media, type, name, star); wall.append(tile);
+    }
+  }
+  function setMode(wallOn) {
+    wallMode = wallOn; document.body.classList.toggle('wall', wallMode);
+    $('#stage').classList.toggle('wall-mode', wallMode);
+    $('#wall').hidden = !wallMode;
+    $('#msg').hidden = wallMode || !!cur;
+    $('#spinner').hidden = wallMode;
+    $('#wallPager').hidden = !wallMode;
+    $('#layout').setAttribute('aria-pressed', String(wallMode));
+    $('#layout').textContent = wallMode ? '▣ Focus view' : '▦ Wall view';
+    $('.info').hidden = wallMode;
+    ['prev', 'next', 'star', 'play', 'interval', 'open'].forEach(id => { $(`#${id}`).hidden = wallMode; });
+    if (wallMode) { clearTimeout(timer); renderWall(); }
+    else { $('#wall').replaceChildren(); if (cur) { $('#msg').hidden = true; schedule(); } }
   }
   function shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) {
@@ -360,7 +462,7 @@
 
   function schedule() {
     clearTimeout(timer);
-    if (slideshow && cur && cur.type === 'image') timer = setTimeout(() => go(1), interval * 1000);
+    if (slideshow && !wallMode && cur && cur.type === 'image') timer = setTimeout(() => go(1), interval * 1000);
   }
 
   /* ---------- UI state ---------- */
@@ -403,7 +505,7 @@
   function setFilter(f) {
     filter = f; store.set('mv.filter', f);
     pool = compute(); deck = []; history = []; pos = -1;
-    updateSeg(); go(1);
+    wallPage = 0; updateSeg(); go(1); renderWall();
   }
   function toggleStar() {
     if (!cur) return;
@@ -411,7 +513,7 @@
     if (stars.has(u)) stars.delete(u); else stars.add(u);
     store.set('mv.stars', [...stars]);
     if (filter === 'starred') { pool = compute(); deck = deck.filter(i => stars.has(i.url)); }
-    updateSeg(); ui();
+    updateSeg(); ui(); renderWall();
     toast(stars.has(u) ? 'Starred' : 'Star removed');
   }
   function toggleSlideshow() {
@@ -458,13 +560,13 @@
   }
 
   stage.addEventListener('wheel', e => {
-    if (!cur || cur.type !== 'image') return;
+    if (wallMode || !cur || cur.type !== 'image') return;
     e.preventDefault();
     zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
   }, { passive: false });
 
   stage.addEventListener('dblclick', e => {
-    if (!cur || cur.type !== 'image') return;
+    if (wallMode || !cur || cur.type !== 'image') return;
     if (view.s > 1) { view = { s: 1, x: 0, y: 0 }; applyView(); }
     else zoomAt(e.clientX, e.clientY, 2.5);
   });
@@ -472,7 +574,7 @@
   const ptrs = new Map();
   let pinch = null, swipe = null;
   stage.addEventListener('pointerdown', e => {
-    if (!cur || cur.type !== 'image') return;
+    if (wallMode || !cur || cur.type !== 'image') return;
     stage.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (ptrs.size === 2) {
@@ -515,6 +617,11 @@
     if (e.target.closest && e.target.closest('select, input, textarea')) return;
     if ($('#help').open) return;
     const k = e.key;
+    if (k === 'g' || k === 'G') { setMode(!wallMode); return; }
+    if (wallMode && (k === 'ArrowLeft' || k === 'ArrowRight')) {
+      e.preventDefault(); wallPage += k === 'ArrowRight' ? 1 : -1; renderWall(); return;
+    }
+    if (wallMode && (k === ' ' || k === 'ArrowUp' || k === 'ArrowDown')) return;
     if (k === ' ') {
       if (e.target.closest && e.target.closest('button, video, a')) return;
       e.preventDefault(); return go(1);
@@ -553,6 +660,10 @@
   $('#star').onclick = toggleStar;
   $('#play').onclick = toggleSlideshow;
   $('#fs').onclick = toggleFS;
+  $('#layout').onclick = () => setMode(!wallMode);
+  $('#tileSize').onchange = () => { wallPage = 0; renderWall(); };
+  $('#wallPrev').onclick = () => { wallPage--; renderWall(); };
+  $('#wallNext').onclick = () => { wallPage++; renderWall(); };
   if (!document.documentElement.requestFullscreen) $('#fs').hidden = true;
   $('#helpBtn').onclick = () => $('#help').showModal();
   $('#closeHelp').onclick = () => $('#help').close();
