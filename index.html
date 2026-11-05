@@ -143,6 +143,9 @@
   body.fs .top { top: 0; background: linear-gradient(rgba(0,0,0,.65), transparent); }
   body.fs .bottom { bottom: 0; background: linear-gradient(transparent, rgba(0,0,0,.65)); }
   body.fs.idle .top, body.fs.idle .bottom { opacity: 0; pointer-events: none; }
+  #splitTools, .split-nav, #splitImageCount, #splitImageName, .companion-heading, #companionName, .companion-controls { transition: opacity .25s; }
+  body.fs.idle #splitTools, body.fs.idle .split-nav, body.fs.idle #splitImageCount, body.fs.idle #splitImageName,
+  body.fs.idle .companion-heading, body.fs.idle #companionName, body.fs.idle .companion-controls { opacity: 0; pointer-events: none; }
   body.fs.idle { cursor: none; }
 
   dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; max-width: 420px; width: calc(100% - 32px); }
