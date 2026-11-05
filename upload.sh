@@ -36,7 +36,7 @@ for tag in "${tags[@]}"; do
     [ -n "$name" ] || continue
     have["$name"]=1
     n=$((n + 1))
-  done < <(gh release view "$tag" -R "$REPO" --json assets --jq '.assets[].name')
+  done < <(gh release view "$tag" -R "$REPO" --json assets --jq '.assets[] | select(.state=="uploaded") | .name')
   counts["$tag"]=$n
   num="${tag#"$PREFIX"}"
   (( num > cur )) && cur=$num
@@ -66,9 +66,28 @@ echo "Already uploaded: ${#have[@]}   To upload: ${#pending[@]}"
 
 # --- Upload ------------------------------------------------------------------
 batch=()
+DELAY="${DELAY:-2}"          # seconds to pause between files (keeps under rate limits)
+
+upload_one() {
+  local f="$1" tries=0
+  until gh release upload "$PREFIX$cur" "$f" -R "$REPO" --clobber; do
+    tries=$((tries + 1))
+    if (( tries >= 5 )); then
+      echo "Giving up on $f. Re-run the script later to continue."
+      return 1
+    fi
+    echo "Upload failed (possibly rate limited). Waiting 10 minutes, retry $tries/5..."
+    sleep 600
+  done
+  sleep "$DELAY"
+}
+
 flush() {
+  local f
   if (( ${#batch[@]} > 0 )); then
-    gh release upload "$PREFIX$cur" "${batch[@]}" -R "$REPO" --clobber
+    for f in "${batch[@]}"; do
+      upload_one "$f" || exit 1
+    done
     batch=()
   fi
 }
@@ -98,7 +117,7 @@ mapfile -t tags < <(gh release list -R "$REPO" --limit 1000 --json tagName --jq 
   | grep "^${PREFIX}[0-9]\+$" | sort -t- -k2 -n || true)
 
 for tag in "${tags[@]}"; do
-  gh release view "$tag" -R "$REPO" --json assets --jq '.assets[].url'
+  gh release view "$tag" -R "$REPO" --json assets --jq '.assets[] | select(.state=="uploaded") | .url'
 done | jq -R . | jq -s . > "$OUT"
 
 echo "Wrote $OUT with $(jq length "$OUT") entries."
