@@ -46,19 +46,28 @@
     touch-action: none; user-select: none; -webkit-user-select: none;
   }
   #stage.wall-mode { touch-action: pan-y; user-select: auto; -webkit-user-select: auto; overflow: auto; padding: 18px; }
-  #stage.wall-mode.companion-on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "player images"; gap: 16px; overflow: hidden; }
+  #stage.wall-mode.companion-on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "player images"; gap: 0; overflow: hidden; padding: 0; background: #050607; }
   #wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile-width, 190px), 1fr)); gap: 12px; align-content: start; min-height: 100%; }
-  #stage.companion-on #wall { grid-area: images; min-width: 0; min-height: 0; height: 100%; overflow: auto; align-content: start; padding: 2px 6px 2px 2px; }
-  #stage.companion-on .tile { align-self: start; }
-  #companion { grid-area: player; min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 12px; align-self: stretch; position: sticky; top: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
-  .companion-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .companion-heading strong { font-size: 14px; }
-  #companionVideo { display: block; flex: 1 1 auto; min-height: 240px; width: 100%; max-height: min(76vh, 760px); aspect-ratio: 16 / 9; background: #050607; border-radius: 8px; object-fit: contain; }
-  #companionName { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .companion-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .loop-choice { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  #stage.companion-on #wall { display: none; }
+  #companion { grid-area: player; position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #050607; }
+  .companion-heading { position: absolute; z-index: 2; top: 12px; left: 14px; max-width: 55%; color: white; text-shadow: 0 1px 4px #000; }
+  .companion-heading strong { font-size: 13px; }
+  .companion-heading .brand { display: none; }
+  #companionVideo { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-height: none; min-height: 0; background: #050607; object-fit: contain; }
+  #companionName { position: absolute; z-index: 2; left: 14px; right: 14px; bottom: 48px; color: white; font-size: 13px; text-shadow: 0 1px 4px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  .companion-controls { position: absolute; z-index: 2; top: 8px; right: 12px; display: flex; align-items: center; gap: 10px; }
+  .loop-choice { color: white; text-shadow: 0 1px 4px #000; font-size: 13px; display: flex; align-items: center; gap: 7px; cursor: pointer; }
   .loop-choice input { accent-color: var(--focus); }
-  #companionNote { margin: 0; color: var(--muted); font-size: 12px; }
+  #companionNote { display: none; }
+  #companionImage { grid-area: images; position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; background: #050607; touch-action: pan-y; }
+  #splitImage { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
+  #splitImageName { position: absolute; left: 14px; right: 14px; bottom: 12px; text-align: center; color: white; font-size: 13px; text-shadow: 0 1px 5px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  #splitImageCount { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 4px 9px; border-radius: 20px; background: rgba(0,0,0,.55); color: white; font-size: 12px; pointer-events: none; }
+  .split-nav { position: absolute; z-index: 2; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; border: 0; border-radius: 8px; color: white; background: rgba(0,0,0,.42); font-size: 36px; line-height: 1; cursor: pointer; }
+  .split-nav:hover { background: rgba(0,0,0,.72); }
+  #splitPrev { left: 12px; }
+  #splitNext { right: 12px; }
+  #splitEmpty { color: var(--muted); text-align: center; padding: 24px; }
   .tile { position: relative; min-width: 0; aspect-ratio: 1 / 1; background: #121417; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; }
   .tile:hover { border-color: #555b65; }
   .tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -149,10 +158,8 @@
     #stage.wall-mode { padding: 10px; }
     #wall { gap: 8px; }
     #stage.wall-mode.companion-on { display: flex; flex-direction: column; overflow: auto; }
-    #stage.companion-on #wall { height: auto; overflow: visible; }
-    #companion { position: relative; order: -1; }
-    #companion { height: auto; }
-    #companionVideo { flex: 0 0 auto; height: min(56vh, 560px); min-height: 220px; max-height: min(56vh, 560px); }
+    #companion { flex: 0 0 48vh; min-height: 240px; order: 0; }
+    #companionImage { flex: 0 0 62vh; min-height: 300px; }
     .bottom { flex-direction: column; align-items: stretch; gap: 4px; }
     .actions { justify-content: center; }
   }
@@ -193,6 +200,14 @@
 
 <main id="stage">
   <div id="wall" hidden></div>
+  <section id="companionImage" hidden aria-label="Image viewer">
+    <img id="splitImage" alt="">
+    <div id="splitImageCount"></div>
+    <div id="splitImageName"></div>
+    <div id="splitEmpty" hidden>No images in this filter.</div>
+    <button class="split-nav" id="splitPrev" type="button" aria-label="Previous image" title="Previous image (Left arrow)">‹</button>
+    <button class="split-nav" id="splitNext" type="button" aria-label="Next image" title="Next image (Right arrow)">›</button>
+  </section>
   <aside id="companion" hidden aria-label="Video companion">
     <div class="companion-heading"><strong>Now playing</strong><span class="brand">VIDEO</span></div>
     <video id="companionVideo" controls playsinline preload="metadata" muted></video>
@@ -272,6 +287,7 @@
   let timer = null, spinTimer = null, token = 0, errStreak = 0, idleTimer = null, toastTimer = null;
   let cur = null, curEl = null, muted = true;
   let wallMode = false, wallPage = 0, companionOn = false, companionCurrent = null;
+  let splitImageIndex = 0, imageWheelAt = 0, imageSwipeStart = null;
   const imgCache = new Map();
   let vidPre = null;
   let view = { s: 1, x: 0, y: 0 };
@@ -295,6 +311,34 @@
     const videos = all.filter(i => i.type === 'video');
     return filter === 'starred' ? videos.filter(i => stars.has(i.url)) : videos;
   }
+  function splitImageItems() { return compute().filter(i => i.type === 'image'); }
+  function renderSplitImage() {
+    if (!companionOn) return;
+    const items = splitImageItems(), img = $('#splitImage');
+    const has = items.length > 0;
+    $('#splitEmpty').hidden = has;
+    img.hidden = !has;
+    $('#splitPrev').hidden = !has;
+    $('#splitNext').hidden = !has;
+    if (!has) {
+      img.removeAttribute('src'); $('#splitImageName').textContent = '';
+      $('#splitImageCount').textContent = '0 / 0'; return;
+    }
+    splitImageIndex = (splitImageIndex % items.length + items.length) % items.length;
+    const item = items[splitImageIndex];
+    if (img.getAttribute('src') !== item.url) img.src = item.url;
+    img.alt = item.name;
+    $('#splitImageName').textContent = item.name;
+    $('#splitImageCount').textContent = `${splitImageIndex + 1} / ${items.length}`;
+    $('#splitPrev').disabled = items.length < 2;
+    $('#splitNext').disabled = items.length < 2;
+  }
+  function stepSplitImage(dir) {
+    const items = splitImageItems();
+    if (!items.length) return;
+    splitImageIndex = (splitImageIndex + dir + items.length) % items.length;
+    renderSplitImage();
+  }
   function advanceCompanion() {
     const videos = companionItems(), player = $('#companionVideo');
     if (!videos.length) {
@@ -314,16 +358,23 @@
   }
   function setCompanion(on) {
     if (on && !wallMode) setMode(true);
+    if (on && !companionOn) {
+      const items = splitImageItems();
+      const currentIndex = items.findIndex(i => i.url === cur?.url);
+      splitImageIndex = currentIndex >= 0 ? currentIndex : 0;
+    }
     companionOn = on;
     $('#stage').classList.toggle('companion-on', on);
     $('#companion').hidden = !on;
+    $('#companionImage').hidden = !on;
+    $('#wall').hidden = !wallMode || on;
     $('#companionToggle').setAttribute('aria-pressed', String(on));
     $('#companionToggle').textContent = on ? 'Hide video' : 'Video + images';
-    if (on) { syncCompanion(); if (companionCurrent) $('#companionVideo').play().catch(() => {}); renderWall(); }
-    else $('#companionVideo').pause();
+    if (on) { syncCompanion(); if (companionCurrent) $('#companionVideo').play().catch(() => {}); renderSplitImage(); }
+    else { $('#companionVideo').pause(); renderWall(); }
   }
   function renderWall() {
-    if (!wallMode) return;
+    if (!wallMode || companionOn) return;
     const items = wallItems(), pageSize = Number($('#tileSize').value) || 12;
     const pages = Math.max(1, Math.ceil(items.length / pageSize));
     wallPage = Math.max(0, Math.min(wallPage, pages - 1));
@@ -571,7 +622,7 @@
   function setFilter(f) {
     filter = f; store.set('mv.filter', f);
     pool = compute(); deck = []; history = []; pos = -1;
-    wallPage = 0; updateSeg(); go(1); renderWall(); syncCompanion();
+    wallPage = 0; updateSeg(); go(1); renderWall(); syncCompanion(); renderSplitImage();
   }
   function toggleStar() {
     if (!cur) return;
@@ -677,6 +728,26 @@
   stage.addEventListener('pointerup', endPtr);
   stage.addEventListener('pointercancel', endPtr);
 
+  $('#companionImage').addEventListener('wheel', e => {
+    if (!companionOn) return;
+    const now = performance.now();
+    if (now - imageWheelAt < 220) return;
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? (e.deltaX || e.deltaY) : e.deltaY);
+    if (Math.abs(delta) < 8) return;
+    e.preventDefault(); imageWheelAt = now; stepSplitImage(delta > 0 ? 1 : -1);
+  }, { passive: false });
+  $('#companionImage').addEventListener('pointerdown', e => {
+    if (e.target.closest && e.target.closest('button')) return;
+    imageSwipeStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  });
+  $('#companionImage').addEventListener('pointerup', e => {
+    if (!imageSwipeStart || imageSwipeStart.id !== e.pointerId) return;
+    const dx = e.clientX - imageSwipeStart.x, dy = e.clientY - imageSwipeStart.y;
+    imageSwipeStart = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) stepSplitImage(dx < 0 ? 1 : -1);
+  });
+  $('#companionImage').addEventListener('pointercancel', () => { imageSwipeStart = null; });
+
   /* ---------- keyboard ---------- */
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -685,7 +756,11 @@
     const k = e.key;
     if (k === 'g' || k === 'G') { setMode(!wallMode); return; }
     if (wallMode && (k === 'ArrowLeft' || k === 'ArrowRight')) {
-      e.preventDefault(); wallPage += k === 'ArrowRight' ? 1 : -1; renderWall(); return;
+      if (companionOn && e.target.closest && e.target.closest('video, button, a')) return;
+      e.preventDefault();
+      if (companionOn) stepSplitImage(k === 'ArrowRight' ? 1 : -1);
+      else { wallPage += k === 'ArrowRight' ? 1 : -1; renderWall(); }
+      return;
     }
     if (wallMode && (k === ' ' || k === 'ArrowUp' || k === 'ArrowDown')) return;
     if (k === ' ') {
@@ -731,6 +806,8 @@
   $('#companionNext').onclick = advanceCompanion;
   $('#companionLoop').onchange = e => { $('#companionVideo').loop = e.target.checked; };
   $('#companionVideo').addEventListener('ended', () => { if (!$('#companionLoop').checked) advanceCompanion(); });
+  $('#splitPrev').onclick = () => stepSplitImage(-1);
+  $('#splitNext').onclick = () => stepSplitImage(1);
   $('#tileSize').onchange = () => { wallPage = 0; renderWall(); };
   $('#wallPrev').onclick = () => { wallPage--; renderWall(); };
   $('#wallNext').onclick = () => { wallPage++; renderWall(); };
