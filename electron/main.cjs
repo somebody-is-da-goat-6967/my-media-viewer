@@ -68,7 +68,7 @@ async function createMainWindow() {
   await startServer();
   const win = new BrowserWindow(secureWindowOptions({
     width: 1440, height: 920, minWidth: 800, minHeight: 560,
-    title: 'My Media Viewer'
+    title: 'My Media Viewer', titleBarStyle: 'hidden', autoHideMenuBar: true
   }));
   attachNavigationPolicy(win);
   await win.loadURL(`${origin}/index.html`);
@@ -111,7 +111,7 @@ ipcMain.handle('media:open-windows', async (event, items, playlists = {}) => {
       ? sourceList.slice(0, 10000).map(entry => ({ src: mediaSource(entry), name: String(entry.name || '') }))
       : [];
     const win = new BrowserWindow(secureWindowOptions({
-      width, height, x, y,
+      width, height, x, y, frame: false,
       minWidth: Math.min(240, width), minHeight: Math.min(180, height), resizable: true, maximizable: true,
       alwaysOnTop: true, autoHideMenuBar: true,
       title: String(item.name || (video ? 'Video' : 'Image')).slice(0, 160)
