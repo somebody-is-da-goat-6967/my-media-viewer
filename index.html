@@ -151,6 +151,7 @@
   body.fs .top { top: 0; background: linear-gradient(rgba(0,0,0,.65), transparent); }
   body.fs .bottom { bottom: 0; background: linear-gradient(transparent, rgba(0,0,0,.65)); }
   body.idle .top, body.idle .bottom { opacity: 0; }
+  body.idle .top:hover, body.idle .top:focus-within { opacity: 1; }
   #splitTools, .split-nav, #splitImageCount, #splitImageName, .companion-heading, #companionName, .companion-controls { transition: opacity .25s; }
   body.idle #splitTools, body.idle .split-nav, body.idle #splitImageCount, body.idle #splitImageName,
   body.idle .companion-heading, body.idle #companionName, body.idle .companion-controls { opacity: 0; }
@@ -209,6 +210,9 @@
     <button class="btn" id="layout" aria-pressed="false" title="Switch between focus and wall view">▦ Wall view</button>
     <button class="btn" id="companionToggle" aria-pressed="false" title="Show a video on the left and a scrollable image gallery on the right">Video + images</button>
     <button class="btn" id="localFilesBtn" type="button" title="Load a local folder of images and videos">Load local folder</button>
+    <button class="btn" id="saveWindowPreset" type="button" hidden>Save window preset</button>
+    <select id="windowPresetList" aria-label="Window layout preset" hidden></select>
+    <button class="btn" id="applyWindowPreset" type="button" hidden>Apply preset</button>
     <input id="localFiles" type="file" accept="image/*,video/*" webkitdirectory multiple hidden>
     <div id="wallPager" hidden>
       <select id="tileSize" aria-label="Tile size" title="Tile size"><option value="16">Compact</option><option value="12" selected>Comfortable</option><option value="8">Large</option></select>
@@ -232,7 +236,9 @@
       <label id="pipAutoResizeLabel" title="Size each image window to fit its image, within the screen size"><input type="checkbox" id="pipAutoResize"> Fit windows to images</label>
       <label class="slot-label" title="Number of separate image windows to open">Images <select id="pipImageSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <label class="slot-label" title="Number of separate video windows to open">Videos <select id="pipVideoSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
-      <select id="desktopArea" aria-label="Window screen area" title="Choose where local media windows fill the screen" hidden><option value="full">Full screen</option><option value="left">Left half</option><option value="right">Right half</option><option value="center">Remaining area</option></select>
+      <button id="fillScreen" type="button" hidden>Fill screen</button>
+      <button id="fillHalf" type="button" hidden>Fill half</button>
+      <button id="fillMargins" type="button" hidden>Fill remaining area</button>
       <button id="mediaWindowsBtn" type="button" title="Open every selected image and video in its own window">Open as windows</button>
       <button id="webPipBtn" type="button" title="Open selected media in a browser-chrome-free PiP window" hidden>Open PiP</button>
       <button id="addImageWindow" type="button" title="Open the next image in a new window">Add image window</button>
@@ -703,11 +709,20 @@
       if (isVideo) probe.load();
     });
   }
-  async function openSeparateMediaWindows(onlyType = '') {
+  async function openSeparateMediaWindows(onlyType = '', areaMode = '') {
     const desktop = window.mediaViewerDesktop;
     const images = splitImageItems(), videos = companionItems();
-    const imageCount = onlyType === 'video' ? 0 : Math.min(onlyType === 'image' ? 1 : Math.max(0, Number($('#pipImageSlots').value) || 0), images.length);
-    const videoCount = onlyType === 'image' ? 0 : Math.min(onlyType === 'video' ? 1 : Math.max(0, Number($('#pipVideoSlots').value) || 0), videos.length);
+    let imageCount = onlyType === 'video' ? 0 : Math.min(onlyType === 'image' ? 1 : Math.max(0, Number($('#pipImageSlots').value) || 0), images.length);
+    let videoCount = onlyType === 'image' ? 0 : Math.min(onlyType === 'video' ? 1 : Math.max(0, Number($('#pipVideoSlots').value) || 0), videos.length);
+    if (areaMode) {
+      let remaining = Math.min(areaMode === 'half' ? 4 : areaMode === 'margins' ? 6 : 8, images.length + videos.length);
+      imageCount = 0; videoCount = 0;
+      while (remaining && (imageCount < images.length || videoCount < videos.length)) {
+        if (images.length && (imageCount <= videoCount || videoCount >= videos.length)) imageCount++;
+        else videoCount++;
+        remaining--;
+      }
+    }
     if (!imageCount && !videoCount) { toast('No images or videos in this filter'); return; }
     const chosen = [];
     for (let i = 0; i < imageCount; i++) {
@@ -736,7 +751,7 @@
           const dimensions = await probeMediaDimensions(item);
           if (dimensions) { item.width = dimensions.width; item.height = dimensions.height; }
         }));
-        const result = await desktop.openMediaWindows(media, { images: imagePlaylist, videos: videoPlaylist }, $('#desktopArea').value);
+        const result = await desktop.openMediaWindows(media, { images: imagePlaylist, videos: videoPlaylist }, areaMode || 'full');
         toast(`Opened ${result.opened} media windows`);
         return;
       }
@@ -1268,9 +1283,28 @@
   $('#layout').onclick = () => setMode(!wallMode);
   $('#companionToggle').onclick = () => setCompanion(!companionOn);
   $('#localFilesBtn').onclick = () => $('#localFiles').click();
+  if (window.mediaViewerDesktop) {
+    ['saveWindowPreset', 'windowPresetList', 'applyWindowPreset'].forEach(id => { $('#' + id).hidden = false; });
+    const refreshPresets = async selected => {
+      const select = $('#windowPresetList'); select.replaceChildren();
+      for (const name of await window.mediaViewerDesktop.getWindowPresets()) select.add(new Option(name, name));
+      if (selected) select.value = selected;
+    };
+    $('#saveWindowPreset').onclick = async () => {
+      const name = prompt('Name this window layout');
+      if (name && await window.mediaViewerDesktop.saveWindowPreset(name)) { await refreshPresets(name); toast('Window layout saved'); }
+    };
+    $('#applyWindowPreset').onclick = async () => {
+      if (await window.mediaViewerDesktop.applyWindowPreset($('#windowPresetList').value)) toast('Window layout applied');
+    };
+    refreshPresets();
+  }
   $('#localFiles').onchange = e => { loadLocalFiles(e.target.files); e.target.value = ''; };
   $('#mediaWindowsBtn').onclick = openSeparateMediaWindows;
-  $('#desktopArea').hidden = !window.mediaViewerDesktop;
+  for (const id of ['fillScreen', 'fillHalf', 'fillMargins']) $('#' + id).hidden = !window.mediaViewerDesktop;
+  $('#fillScreen').onclick = () => openSeparateMediaWindows('', 'full');
+  $('#fillHalf').onclick = () => openSeparateMediaWindows('', 'half');
+  $('#fillMargins').onclick = () => openSeparateMediaWindows('', 'margins');
   $('#webPipBtn').hidden = !!window.mediaViewerDesktop || !('documentPictureInPicture' in window);
   $('#webPipBtn').onclick = openWebPip;
   $('#addImageWindow').onclick = () => openSeparateMediaWindows('image');

@@ -88,39 +88,42 @@ ipcMain.handle('media:open-windows', async (event, items, playlists = {}, areaMo
   if (!Array.isArray(items) || items.length < 1 || items.length > 8) throw new Error('Choose between 1 and 8 media windows');
   const opened = [];
   const display = { ...screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea };
-  if (areaMode === 'left' || areaMode === 'right') {
+  if (areaMode === 'half') {
     display.width = Math.floor(display.width / 2);
-    if (areaMode === 'right') display.x += display.width;
-  } else if (areaMode === 'center') {
+  } else if (areaMode === 'margins') {
     const marginX = Math.floor(display.width * .15), marginY = Math.floor(display.height * .12);
     display.x += marginX; display.y += marginY;
     display.width -= marginX * 2; display.height -= marginY * 2;
   }
-  const columns = Math.ceil(Math.sqrt(items.length));
+  let columns = 1, bestScore = Infinity;
+  for (let candidate = 1; candidate <= items.length; candidate++) {
+    const candidateRows = Math.ceil(items.length / candidate);
+    const emptyCells = candidate * candidateRows - items.length;
+    const cellAspect = (display.width / candidate) / (display.height / candidateRows);
+    const score = emptyCells * .5 + Math.abs(Math.log(cellAspect / (16 / 9)));
+    if (score < bestScore) { bestScore = score; columns = candidate; }
+  }
   const rows = Math.ceil(items.length / columns);
-  const cellWidth = display.width / columns;
   const cellHeight = display.height / rows;
   for (const [index, item] of items.entries()) {
     if (!item || !['image', 'video'].includes(item.type)) continue;
     const src = mediaSource(item);
     const video = item.type === 'video';
-    const aspect = Number(item.width) > 0 && Number(item.height) > 0
-      ? Number(item.width) / Number(item.height)
-      : 16 / 9;
-    const maxWidth = Math.max(240, Math.floor(cellWidth - 8));
-    const maxHeight = Math.max(180, Math.floor(cellHeight - 8));
-    const width = Math.floor(Math.min(maxWidth, maxHeight * aspect));
-    const height = Math.floor(width / aspect);
-    const column = index % columns, row = Math.floor(index / columns);
-    const x = display.x + Math.floor(column * cellWidth + (cellWidth - width) / 2);
-    const y = display.y + Math.floor(row * cellHeight + (cellHeight - height) / 2);
+    const row = Math.floor(index / columns);
+    const column = index % columns;
+    const rowCount = row === rows - 1 ? items.length - row * columns : columns;
+    const cellWidth = display.width / rowCount;
+    const width = Math.floor(cellWidth);
+    const height = Math.floor(cellHeight);
+    const x = display.x + Math.floor(column * cellWidth);
+    const y = display.y + Math.floor(row * cellHeight);
     const sourceList = item.type === 'image' ? playlists.images : playlists.videos;
     const playlist = Array.isArray(sourceList)
       ? sourceList.slice(0, 10000).map(entry => ({ src: mediaSource(entry), name: String(entry.name || '') }))
       : [];
     const win = new BrowserWindow(secureWindowOptions({
       width, height, x, y, frame: false,
-      minWidth: Math.min(240, width), minHeight: Math.min(180, height), resizable: true, maximizable: true,
+      minWidth: Math.min(200, width), minHeight: Math.min(150, height), resizable: true, maximizable: true,
       alwaysOnTop: true, autoHideMenuBar: true,
       title: String(item.name || (video ? 'Video' : 'Image')).slice(0, 160)
     }));
@@ -153,6 +156,30 @@ ipcMain.on('media:set-image-autoplay', (_event, config) => {
     if (!win.isDestroyed()) win.webContents.send('media-window:image-autoplay', imageAutoplayConfig);
   }
 });
+
+function presetsFile() { return path.join(app.getPath('userData'), 'window-presets.json'); }
+function readPresets() {
+  try { return JSON.parse(fs.readFileSync(presetsFile(), 'utf8')); } catch { return {}; }
+}
+ipcMain.handle('media:presets', () => Object.keys(readPresets()));
+ipcMain.handle('media:preset-save', (_event, name) => {
+  const cleanName = String(name || '').trim().slice(0, 48);
+  if (!cleanName) return false;
+  const presets = readPresets();
+  presets[cleanName] = [...mediaWindows].filter(win => !win.isDestroyed()).map(win => win.getBounds());
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(presetsFile(), JSON.stringify(presets, null, 2));
+  return true;
+});
+ipcMain.handle('media:preset-apply', (_event, name) => {
+  const bounds = readPresets()[String(name || '')];
+  if (!Array.isArray(bounds)) return false;
+  [...mediaWindows].filter(win => !win.isDestroyed()).forEach((win, i) => {
+    if (bounds[i]) win.setBounds(bounds[i]);
+  });
+  return true;
+});
+ipcMain.on('media:minimize-window', event => BrowserWindow.fromWebContents(event.sender)?.minimize());
 
 app.setAppUserModelId('com.my-media-viewer.desktop');
 

@@ -18,7 +18,7 @@
 </style>
 </head>
 <body>
-  <header><strong id="name"></strong><label id="loopControl"><input id="loop" type="checkbox">Loop</label><button id="next" hidden type="button">Next</button><button id="close" type="button" title="Close window">×</button></header>
+  <header><strong id="name"></strong><label id="loopControl"><input id="loop" type="checkbox">Loop</label><button id="next" hidden type="button">Next</button><button id="minimize" type="button" title="Minimize window">−</button><button id="close" type="button" title="Close window">×</button></header>
   <main id="media"></main>
   <script>
     const params = new URLSearchParams(location.search);
@@ -46,6 +46,7 @@
     document.title = name;
     imageName.textContent = name;
     document.querySelector('#close').addEventListener('click', () => window.close());
+    document.querySelector('#minimize').addEventListener('click', () => window.mediaViewerDesktop?.minimizeWindow());
     const el = document.createElement(type === 'video' ? 'video' : 'img');
     el.src = src || '';
     if (type === 'video') {
@@ -91,6 +92,7 @@
       }
       el.addEventListener('load', scheduleImageAdvance);
       el.addEventListener('error', scheduleImageAdvance);
+      el.addEventListener('click', () => window.mediaViewerSetAutoplay({ ...imageAutoplay, enabled: !imageAutoplay.enabled }));
     }
     document.querySelector('#media').append(el);
     if (window.mediaViewerDesktop?.onMediaAutoplay) window.mediaViewerDesktop.onMediaAutoplay(window.mediaViewerSetAutoplay);

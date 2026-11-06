@@ -15,5 +15,9 @@ contextBridge.exposeInMainWorld('mediaViewerDesktop', {
   },
   onMediaPlaylist(callback) {
     ipcRenderer.on('media-window:playlist', (_event, playlist) => callback(playlist));
-  }
+  },
+  minimizeWindow() { ipcRenderer.send('media:minimize-window'); },
+  getWindowPresets() { return ipcRenderer.invoke('media:presets'); },
+  saveWindowPreset(name) { return ipcRenderer.invoke('media:preset-save', name); },
+  applyWindowPreset(name) { return ipcRenderer.invoke('media:preset-apply', name); }
 });
