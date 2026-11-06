@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #08090b; color: #f2f1ed; font: 13px/1.4 system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { flex: 0 0 auto; padding: 7px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #17191d; color: #aeb2bb; }
+  main { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; }
+  img, video { display: block; width: 100%; height: 100%; object-fit: contain; background: #050607; }
+</style>
+</head>
+<body>
+  <header id="name"></header>
+  <main id="media"></main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const type = params.get('type');
+    const src = params.get('src');
+    const name = params.get('name') || 'Media';
+    document.title = name;
+    document.querySelector('#name').textContent = name;
+    const el = document.createElement(type === 'video' ? 'video' : 'img');
+    el.src = src;
+    if (type === 'video') {
+      el.controls = true; el.autoplay = true; el.playsInline = true; el.muted = true;
+      el.addEventListener('canplay', () => el.play().catch(() => {}), { once: true });
+    } else el.alt = name;
+    document.querySelector('#media').append(el);
+  </script>
+</body>
+</html>
