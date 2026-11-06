@@ -61,11 +61,11 @@
   .loop-choice { color: white; text-shadow: 0 1px 4px #000; font-size: 13px; display: flex; align-items: center; gap: 7px; cursor: pointer; }
   .loop-choice input { accent-color: var(--focus); }
   #companionNote { display: none; }
-  #companionImage { grid-area: images; position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; background: #050607; touch-action: pan-y; }
-  #splitImage { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
-  #splitImageName { position: absolute; left: 14px; right: 14px; bottom: 12px; text-align: center; color: white; font-size: 13px; text-shadow: 0 1px 5px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-  #splitImageCount { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 4px 9px; border-radius: 20px; background: rgba(0,0,0,.55); color: white; font-size: 12px; pointer-events: none; }
-  #splitTools { position: absolute; z-index: 3; top: 10px; right: 10px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; max-width: calc(100% - 20px); padding: 6px 8px; border-radius: 9px; background: rgba(0,0,0,.72); color: white; }
+  #companionImage { grid-area: images; position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; background: #050607; touch-action: pan-y; }
+  #splitImage { grid-row: 1; grid-column: 1; display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
+  #splitImageName { grid-row: 1; grid-column: 1; align-self: end; position: relative; z-index: 1; margin: 0 14px 12px; text-align: center; color: white; font-size: 13px; text-shadow: 0 1px 5px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  #splitImageCount { grid-row: 1; grid-column: 1; align-self: start; justify-self: center; position: relative; z-index: 1; margin-top: 12px; padding: 4px 9px; border-radius: 20px; background: rgba(0,0,0,.55); color: white; font-size: 12px; pointer-events: none; }
+  #splitTools { position: relative; z-index: 3; grid-row: 2; grid-column: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px; width: 100%; max-width: none; padding: 7px 10px; background: #17191d; color: white; }
   #splitTools select { max-width: 96px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 5px; font-size: 12px; }
   #splitRandomLabel { display: flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; cursor: pointer; }
   #splitRandomLabel input { accent-color: var(--focus); }
@@ -78,11 +78,10 @@
   #pipAutoResizeLabel input { accent-color: var(--focus); }
   .slot-label { display: flex; align-items: center; gap: 4px; color: white; font-size: 12px; white-space: nowrap; }
   .slot-label select { width: 50px; }
-  .split-nav { position: absolute; z-index: 2; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; border: 0; border-radius: 8px; color: white; background: rgba(0,0,0,.42); font-size: 36px; line-height: 1; cursor: pointer; }
+  .split-nav { position: relative; z-index: 2; grid-row: 1; grid-column: 1; align-self: center; justify-self: start; width: 44px; height: 64px; border: 0; border-radius: 8px; color: white; background: rgba(0,0,0,.42); font-size: 36px; line-height: 1; cursor: pointer; }
   .split-nav:hover { background: rgba(0,0,0,.72); }
-  #splitPrev { left: 12px; }
-  #splitNext { right: 12px; }
-  #splitEmpty { color: var(--muted); text-align: center; padding: 24px; }
+  #splitNext { justify-self: end; }
+  #splitEmpty { grid-row: 1; grid-column: 1; align-self: center; justify-self: center; color: var(--muted); text-align: center; padding: 24px; }
   .tile { position: relative; min-width: 0; aspect-ratio: 1 / 1; background: #121417; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; }
   .tile:hover { border-color: #555b65; }
   .tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -178,7 +177,7 @@
     #stage.wall-mode.companion-on { display: flex; flex-direction: column; overflow: auto; }
     #companion { flex: 0 0 48vh; min-height: 240px; order: 0; }
     #companionImage { flex: 0 0 62vh; min-height: 300px; }
-    #splitTools { left: 8px; right: 8px; justify-content: center; flex-wrap: wrap; }
+    #splitTools { justify-content: center; flex-wrap: wrap; }
     .bottom { flex-direction: column; align-items: stretch; gap: 4px; }
     .actions { justify-content: center; }
   }
@@ -230,12 +229,10 @@
     <div id="splitTools" aria-label="Image autoplay controls">
       <button id="splitPlay" type="button" aria-pressed="false" title="Autoplay images">Play</button>
       <label id="splitRandomLabel"><input type="checkbox" id="splitRandom"> Random</label>
-      <label id="pipAutoResizeLabel" title="Fit image PiP to the current image. Chrome requires a user action to resize; autoplay changes may keep the current window size."><input type="checkbox" id="pipAutoResize"> Auto-resize PiP</label>
-      <label class="slot-label" title="Number of images shown in PiP">Images <select id="pipImageSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
-      <label class="slot-label" title="Number of videos shown in PiP">Videos <select id="pipVideoSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
-      <button id="splitImagePip" type="button" title="Open image in Picture-in-Picture">Image PiP</button>
-      <button id="combinedPip" type="button" title="Open the video and image together in one PiP window">Both in PiP</button>
-      <button id="desktopWindows" type="button" title="Open configured media in separate always-on-top windows" hidden>Open separate windows</button>
+      <label id="pipAutoResizeLabel" title="Size each image window to fit its image, within the screen size"><input type="checkbox" id="pipAutoResize"> Fit windows to images</label>
+      <label class="slot-label" title="Number of separate image windows to open">Images <select id="pipImageSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
+      <label class="slot-label" title="Number of separate video windows to open">Videos <select id="pipVideoSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
+      <button id="mediaWindowsBtn" type="button" title="Open every selected image and video in its own window">Open as windows</button>
       <select id="splitInterval" aria-label="Image autoplay interval" title="Time per image">
         <option value="3">3 sec</option><option value="5" selected>5 sec</option><option value="10">10 sec</option><option value="30">30 sec</option>
       </select>
@@ -251,7 +248,6 @@
     <div class="companion-controls">
       <label class="loop-choice"><input type="checkbox" id="companionLoop"> Loop this video</label>
       <button class="btn" id="companionNext" type="button">Next video</button>
-      <button id="videoPip" type="button" title="Open video in Picture-in-Picture">Video PiP</button>
     </div>
     <p id="companionNote">Playing muted. Use the video controls to turn sound on.</p>
   </aside>
@@ -381,7 +377,6 @@
       $('#splitPrev').hidden = !has;
       $('#splitNext').hidden = !has;
       $('#splitPlay').disabled = !has;
-      $('#splitImagePip').disabled = !has || !('documentPictureInPicture' in window);
     }
     if (!has) {
       splitAuto = false; clearTimeout(splitTimer);
@@ -670,25 +665,81 @@
   function syncCompanion() {
     if (companionOn && !companionItems().some(i => i.url === companionCurrent?.url)) advanceCompanion();
   }
+  function probeMediaDimensions(item) {
+    if (item.width && item.height) return Promise.resolve({ width: item.width, height: item.height });
+    return new Promise(resolve => {
+      const isVideo = item.type === 'video';
+      const probe = isVideo ? document.createElement('video') : new Image();
+      let done = false;
+      const finish = value => {
+        if (done) return;
+        done = true; clearTimeout(timeout);
+        probe.onload = probe.onerror = probe.onloadedmetadata = null;
+        if (isVideo) { probe.pause(); probe.removeAttribute('src'); probe.load(); }
+        resolve(value);
+      };
+      const timeout = setTimeout(() => finish(null), 2500);
+      if (isVideo) {
+        probe.preload = 'metadata'; probe.muted = true;
+        probe.onloadedmetadata = () => finish({ width: probe.videoWidth, height: probe.videoHeight });
+      } else probe.onload = () => finish({ width: probe.naturalWidth, height: probe.naturalHeight });
+      probe.onerror = () => finish(null);
+      probe.src = item.url;
+      if (isVideo) probe.load();
+    });
+  }
   async function openSeparateMediaWindows() {
     const desktop = window.mediaViewerDesktop;
-    if (!desktop) { toast('Separate always-on-top windows are available in the local desktop app'); return; }
     const images = splitImageItems(), videos = companionItems();
     const imageCount = Math.min(Math.max(0, Number($('#pipImageSlots').value) || 0), images.length);
     const videoCount = Math.min(Math.max(0, Number($('#pipVideoSlots').value) || 0), videos.length);
     if (!imageCount && !videoCount) { toast('No images or videos in this filter'); return; }
     const chosen = [];
-    for (let i = 0; i < imageCount; i++) chosen.push(images[(splitImageIndex + i) % images.length]);
+    for (let i = 0; i < imageCount; i++) chosen.push({ item: images[(splitImageIndex + i) % images.length], index: i, step: 1 });
     const videoStart = Math.max(0, videos.findIndex(i => i.url === companionCurrent?.url));
-    for (let i = 0; i < videoCount; i++) chosen.push(videos[(videoStart + i) % videos.length]);
+    for (let i = 0; i < videoCount; i++) chosen.push({ item: videos[(videoStart + i) % videos.length], index: (videoStart + i) % videos.length, step: videoCount });
     try {
-      const media = chosen.map(item => {
-        const path = item.file ? desktop.getPathForFile(item.file) : '';
-        return { type: item.type, name: item.name, path, url: path ? '' : item.url };
+      const media = chosen.map(({ item, index, step }) => {
+        const path = desktop && item.file ? desktop.getPathForFile(item.file) : '';
+        const videoPlaylist = item.type === 'video' ? videos.map(video => {
+          const videoPath = desktop && video.file ? desktop.getPathForFile(video.file) : '';
+          return { path: videoPath, url: videoPath ? '' : video.url };
+        }) : [];
+        const dimensions = item.type === 'image' ? imageDimensions(item) :
+          (item.url === companionCurrent?.url && $('#companionVideo').videoWidth ? { width: $('#companionVideo').videoWidth, height: $('#companionVideo').videoHeight } : null);
+        return { type: item.type, name: item.name, path, url: path ? '' : item.url, videoPlaylist, videoIndex: index, videoStep: step, width: dimensions?.width || 0, height: dimensions?.height || 0 };
       });
-      const result = await desktop.openMediaWindows(media);
-      toast(`Opened ${result.opened} always-on-top windows`);
-    } catch { toast('Could not open the separate media windows'); }
+      if (desktop) {
+        await Promise.all(media.map(async item => {
+          const dimensions = await probeMediaDimensions(item);
+          if (dimensions) { item.width = dimensions.width; item.height = dimensions.height; }
+        }));
+        const result = await desktop.openMediaWindows(media);
+        toast(`Opened ${result.opened} media windows`);
+        return;
+      }
+      let opened = 0;
+      media.forEach((item, i) => {
+        const popupUrl = new URL('media-window.html', location.href);
+        popupUrl.searchParams.set('type', item.type);
+        popupUrl.searchParams.set('name', item.name);
+        popupUrl.searchParams.set('src', item.url);
+        if (item.type === 'video') {
+          popupUrl.searchParams.set('playlist', JSON.stringify(item.videoPlaylist.map(video => video.url)));
+          popupUrl.searchParams.set('index', String(item.videoIndex));
+          popupUrl.searchParams.set('step', String(item.videoStep));
+        }
+        let width = item.type === 'video' ? 1100 : 900, height = item.type === 'video' ? 720 : 900;
+        if (item.type === 'image' && $('#pipAutoResize').checked) {
+          const dims = imageDimensions(item);
+          if (dims) ({ width, height } = pipDimensions(dims.width, dims.height));
+        }
+        if (window.open(popupUrl.href, `media-viewer-${Date.now()}-${i}`, `popup=yes,width=${width},height=${height},resizable=yes`)) opened++;
+      });
+      if (opened === media.length) toast(`Opened ${opened} media windows`);
+      else if (opened) toast(`Opened ${opened} of ${media.length}; allow popups for this site`);
+      else toast('Popups are blocked; allow popups for this site and try again');
+    } catch { toast('Could not open the media windows'); }
   }
   function setCompanion(on) {
     if (on && !wallMode) setMode(true);
@@ -1146,8 +1197,7 @@
   $('#companionToggle').onclick = () => setCompanion(!companionOn);
   $('#localFilesBtn').onclick = () => $('#localFiles').click();
   $('#localFiles').onchange = e => { loadLocalFiles(e.target.files); e.target.value = ''; };
-  $('#desktopWindows').hidden = !window.mediaViewerDesktop;
-  $('#desktopWindows').onclick = openSeparateMediaWindows;
+  $('#mediaWindowsBtn').onclick = openSeparateMediaWindows;
   $('#companionNext').onclick = advanceCompanion;
   $('#companionLoop').onchange = e => { $('#companionVideo').loop = e.target.checked; };
   $('#companionVideo').addEventListener('ended', () => { if (!$('#companionLoop').checked) advanceCompanion(); });
@@ -1164,27 +1214,12 @@
     store.set('mv.pipAutoResize', e.target.checked);
     if (e.target.checked) resizeImagePipTo(splitImageItems()[splitImageIndex]);
   };
-  $('#splitImagePip').onclick = toggleImagePip;
-  $('#combinedPip').onclick = toggleCombinedPip;
-  $('#videoPip').onclick = toggleVideoPip;
-  $('#splitImagePip').disabled = !('documentPictureInPicture' in window);
-  if ($('#splitImagePip').disabled) $('#splitImagePip').title = 'Image PiP requires a recent desktop Chrome';
-  $('#combinedPip').disabled = !('documentPictureInPicture' in window);
-  if ($('#combinedPip').disabled) $('#combinedPip').title = 'Combined PiP requires a recent desktop Chrome';
-  $('#videoPip').disabled = !$('#companionVideo').requestPictureInPicture;
-  if ($('#videoPip').disabled) $('#videoPip').title = 'Video PiP is not available in this browser';
-  $('#companionVideo').addEventListener('enterpictureinpicture', () => {
-    $('#videoPip').textContent = 'Close Video PiP'; $('#videoPip').setAttribute('aria-pressed', 'true');
-  });
-  $('#companionVideo').addEventListener('leavepictureinpicture', () => {
-    $('#videoPip').textContent = 'Video PiP'; $('#videoPip').setAttribute('aria-pressed', 'false');
-  });
   $('#pipImageSlots').value = String(store.get('mv.pipImageSlots', 1));
   if (!['0', '1', '2', '3', '4'].includes($('#pipImageSlots').value)) $('#pipImageSlots').value = '1';
-  $('#pipImageSlots').onchange = e => { store.set('mv.pipImageSlots', Number(e.target.value)); if (combinedPipWindow) toast('Close and reopen Both in PiP to apply the new pane count'); };
+  $('#pipImageSlots').onchange = e => store.set('mv.pipImageSlots', Number(e.target.value));
   $('#pipVideoSlots').value = String(store.get('mv.pipVideoSlots', 1));
   if (!['0', '1', '2', '3', '4'].includes($('#pipVideoSlots').value)) $('#pipVideoSlots').value = '1';
-  $('#pipVideoSlots').onchange = e => { store.set('mv.pipVideoSlots', Number(e.target.value)); if (combinedPipWindow) toast('Close and reopen Both in PiP to apply the new pane count'); };
+  $('#pipVideoSlots').onchange = e => store.set('mv.pipVideoSlots', Number(e.target.value));
   $('#tileSize').onchange = () => { wallPage = 0; renderWall(); };
   $('#wallPrev').onclick = () => { wallPage--; renderWall(); };
   $('#wallNext').onclick = () => { wallPage++; renderWall(); };

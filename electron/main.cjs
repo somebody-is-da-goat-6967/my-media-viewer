@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen } = require('electron');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
@@ -66,7 +66,7 @@ async function createMainWindow() {
   await startServer();
   const win = new BrowserWindow(secureWindowOptions({
     width: 1440, height: 920, minWidth: 800, minHeight: 560,
-    title: 'Random Media Viewer'
+    title: 'My Media Viewer'
   }));
   attachNavigationPolicy(win);
   await win.loadURL(`${origin}/index.html`);
@@ -85,24 +85,48 @@ function mediaSource(item) {
 ipcMain.handle('media:open-windows', async (event, items) => {
   if (!Array.isArray(items) || items.length < 1 || items.length > 8) throw new Error('Choose between 1 and 8 media windows');
   const opened = [];
-  for (const item of items) {
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const columns = Math.ceil(Math.sqrt(items.length));
+  const rows = Math.ceil(items.length / columns);
+  const cellWidth = display.width / columns;
+  const cellHeight = display.height / rows;
+  for (const [index, item] of items.entries()) {
     if (!item || !['image', 'video'].includes(item.type)) continue;
     const src = mediaSource(item);
     const video = item.type === 'video';
+    const aspect = Number(item.width) > 0 && Number(item.height) > 0
+      ? Number(item.width) / Number(item.height)
+      : 16 / 9;
+    const maxWidth = Math.max(240, Math.floor(cellWidth - 8));
+    const maxHeight = Math.max(180, Math.floor(cellHeight - 8));
+    const width = Math.floor(Math.min(maxWidth, maxHeight * aspect));
+    const height = Math.floor(width / aspect);
+    const column = index % columns, row = Math.floor(index / columns);
+    const x = display.x + Math.floor(column * cellWidth + (cellWidth - width) / 2);
+    const y = display.y + Math.floor(row * cellHeight + (cellHeight - height) / 2);
+    const playlist = video && Array.isArray(item.videoPlaylist)
+      ? item.videoPlaylist.slice(0, 100).map(mediaSource)
+      : [];
     const win = new BrowserWindow(secureWindowOptions({
-      width: video ? 560 : 480, height: video ? 360 : 420,
-      minWidth: 240, minHeight: 180, resizable: true,
+      width, height, x, y,
+      minWidth: Math.min(240, width), minHeight: Math.min(180, height), resizable: true, maximizable: true,
       alwaysOnTop: true, autoHideMenuBar: true,
       title: String(item.name || (video ? 'Video' : 'Image')).slice(0, 160)
     }));
     win.setAlwaysOnTop(true, 'floating');
     attachNavigationPolicy(win);
-    const query = new URLSearchParams({ type: item.type, name: String(item.name || ''), src });
+    const query = new URLSearchParams({
+      type: item.type, name: String(item.name || ''), src,
+      playlist: JSON.stringify(playlist), index: String(Number(item.videoIndex) || 0),
+      step: String(Math.max(1, Number(item.videoStep) || 1))
+    });
     await win.loadFile(path.join(__dirname, 'media-window.html'), { query: Object.fromEntries(query) });
     opened.push(win);
   }
   return { opened: opened.length };
 });
+
+app.setAppUserModelId('com.my-media-viewer.desktop');
 
 app.whenReady().then(createMainWindow).catch(error => {
   console.error('Could not start the media viewer:', error);

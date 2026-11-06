@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #08090b; color: #f2f1ed; font: 13px/1.4 system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { flex: 0 0 auto; min-height: 42px; padding: 5px 10px; display: flex; align-items: center; gap: 10px; overflow: hidden; background: #17191d; color: #aeb2bb; }
+  #name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #loopControl { display: none; align-items: center; gap: 5px; white-space: nowrap; }
+  button { border: 1px solid #363a43; border-radius: 6px; padding: 5px 11px; background: #22252b; color: #fff; cursor: pointer; }
+  main { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; }
+  img, video { display: block; width: 100%; height: 100%; object-fit: contain; background: #050607; }
+</style>
+</head>
+<body>
+  <header><strong id="name"></strong><label id="loopControl"><input id="loop" type="checkbox">Loop</label><button id="next" hidden type="button">Next</button></header>
+  <main id="media"></main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const type = params.get('type');
+    const src = params.get('src');
+    const name = params.get('name') || 'Media';
+    let playlist = [];
+    try { playlist = JSON.parse(params.get('playlist') || '[]').filter(value => typeof value === 'string'); } catch {}
+    let index = Math.max(0, Number(params.get('index')) || 0);
+    const step = Math.max(1, Number(params.get('step')) || 1);
+    document.title = name;
+    document.querySelector('#name').textContent = name;
+    const el = document.createElement(type === 'video' ? 'video' : 'img');
+    el.src = src || '';
+    if (type === 'video') {
+      const loopControl = document.querySelector('#loopControl');
+      const loop = document.querySelector('#loop');
+      const next = document.querySelector('#next');
+      loopControl.style.display = 'flex';
+      next.hidden = playlist.length < 2;
+      el.controls = true; el.autoplay = true; el.playsInline = true; el.muted = true;
+      el.loop = false;
+      const advance = () => {
+        if (playlist.length < 2) return;
+        index = (index + step) % playlist.length;
+        el.src = playlist[index]; el.load(); el.play().catch(() => {});
+        document.querySelector('#name').textContent = name;
+      };
+      loop.addEventListener('change', () => { el.loop = loop.checked; });
+      next.addEventListener('click', advance);
+      el.addEventListener('ended', advance);
+      el.addEventListener('canplay', () => el.play().catch(() => {}), { once: true });
+    } else el.alt = name;
+    document.querySelector('#media').append(el);
+  </script>
+</body>
+</html>
