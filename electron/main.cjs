@@ -8,6 +8,8 @@ const root = path.resolve(__dirname, '..');
 const preload = path.join(__dirname, 'preload.cjs');
 let server;
 let origin;
+const mediaWindows = new Set();
+let imageAutoplayConfig = { enabled: false, random: false, interval: 5 };
 
 const mime = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -82,7 +84,7 @@ function mediaSource(item) {
   throw new Error('Unsupported media URL');
 }
 
-ipcMain.handle('media:open-windows', async (event, items) => {
+ipcMain.handle('media:open-windows', async (event, items, playlists = {}) => {
   if (!Array.isArray(items) || items.length < 1 || items.length > 8) throw new Error('Choose between 1 and 8 media windows');
   const opened = [];
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
@@ -104,8 +106,9 @@ ipcMain.handle('media:open-windows', async (event, items) => {
     const column = index % columns, row = Math.floor(index / columns);
     const x = display.x + Math.floor(column * cellWidth + (cellWidth - width) / 2);
     const y = display.y + Math.floor(row * cellHeight + (cellHeight - height) / 2);
-    const playlist = video && Array.isArray(item.videoPlaylist)
-      ? item.videoPlaylist.slice(0, 100).map(mediaSource)
+    const sourceList = item.type === 'image' ? playlists.images : playlists.videos;
+    const playlist = Array.isArray(sourceList)
+      ? sourceList.slice(0, 10000).map(entry => ({ src: mediaSource(entry), name: String(entry.name || '') }))
       : [];
     const win = new BrowserWindow(secureWindowOptions({
       width, height, x, y,
@@ -118,12 +121,29 @@ ipcMain.handle('media:open-windows', async (event, items) => {
     const query = new URLSearchParams({
       type: item.type, name: String(item.name || ''), src,
       playlist: JSON.stringify(playlist), index: String(Number(item.videoIndex) || 0),
-      step: String(Math.max(1, Number(item.videoStep) || 1))
+      step: String(Math.max(1, Number(item.videoStep) || 1)),
+      autoplay: String(!!item.autoplay), random: String(!!item.random),
+      interval: String(Math.min(30, Math.max(3, Number(item.interval) || 5)))
     });
+    mediaWindows.add(win);
+    win.on('closed', () => mediaWindows.delete(win));
     await win.loadFile(path.join(__dirname, 'media-window.html'), { query: Object.fromEntries(query) });
+    win.webContents.send('media-window:playlist', playlist);
+    win.webContents.send('media-window:image-autoplay', imageAutoplayConfig);
     opened.push(win);
   }
   return { opened: opened.length };
+});
+
+ipcMain.on('media:set-image-autoplay', (_event, config) => {
+  imageAutoplayConfig = {
+    enabled: !!config?.enabled,
+    random: !!config?.random,
+    interval: Math.min(30, Math.max(3, Number(config?.interval) || 5))
+  };
+  for (const win of mediaWindows) {
+    if (!win.isDestroyed()) win.webContents.send('media-window:image-autoplay', imageAutoplayConfig);
+  }
 });
 
 app.setAppUserModelId('com.my-media-viewer.desktop');

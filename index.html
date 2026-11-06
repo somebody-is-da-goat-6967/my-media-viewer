@@ -227,7 +227,7 @@
     <div id="splitImageName"></div>
     <div id="splitEmpty" hidden>No images in this filter.</div>
     <div id="splitTools" aria-label="Image autoplay controls">
-      <button id="splitPlay" type="button" aria-pressed="false" title="Autoplay images">Play</button>
+      <button id="splitPlay" type="button" aria-pressed="false" title="Autoplay images in the viewer and open image windows">Play</button>
       <label id="splitRandomLabel"><input type="checkbox" id="splitRandom"> Random</label>
       <label id="pipAutoResizeLabel" title="Size each image window to fit its image, within the screen size"><input type="checkbox" id="pipAutoResize"> Fit windows to images</label>
       <label class="slot-label" title="Number of separate image windows to open">Images <select id="pipImageSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
@@ -325,6 +325,7 @@
   let splitInterval = Number(store.get('mv.splitInterval', 5)) || 5, splitTimer = null;
   let imagePipWindow = null, imagePipElement = null, imagePipCount = null, imagePipName = null;
   let combinedPipWindow = null, combinedPipImageSlots = [], combinedPipVideoSlots = [], combinedPipVideoDetached = false;
+  const mediaPopupWindows = [];
   const imgCache = new Map();
   let vidPre = null;
   let view = { s: 1, x: 0, y: 0 };
@@ -379,7 +380,7 @@
       $('#splitPlay').disabled = !has;
     }
     if (!has) {
-      splitAuto = false; clearTimeout(splitTimer);
+      splitAuto = false; clearTimeout(splitTimer); syncMediaWindowAutoplay();
       if (companionOn) {
         $('#splitPlay').setAttribute('aria-pressed', 'false'); $('#splitPlay').textContent = 'Play';
         img.removeAttribute('src'); $('#splitImageName').textContent = '';
@@ -427,8 +428,18 @@
     const b = $('#splitPlay');
     b.setAttribute('aria-pressed', String(splitAuto));
     b.textContent = splitAuto ? 'Pause' : 'Play';
-    b.title = splitAuto ? 'Pause image autoplay' : 'Autoplay images';
+    b.title = splitAuto ? 'Pause image autoplay' : 'Autoplay images in the viewer and open image windows';
+    syncMediaWindowAutoplay();
     scheduleSplitAutoplay();
+  }
+  function syncMediaWindowAutoplay() {
+    const config = { enabled: splitAuto, random: splitRandom, interval: splitInterval };
+    if (window.mediaViewerDesktop) window.mediaViewerDesktop.setMediaAutoplay(config);
+    for (let i = mediaPopupWindows.length - 1; i >= 0; i--) {
+      const popup = mediaPopupWindows[i];
+      if (!popup || popup.closed) mediaPopupWindows.splice(i, 1);
+      else popup.mediaViewerSetAutoplay?.(config);
+    }
   }
   function pipDimensions(width, height) {
     if (!width || !height) return { width: 640, height: 420 };
@@ -695,26 +706,33 @@
     const videoCount = Math.min(Math.max(0, Number($('#pipVideoSlots').value) || 0), videos.length);
     if (!imageCount && !videoCount) { toast('No images or videos in this filter'); return; }
     const chosen = [];
-    for (let i = 0; i < imageCount; i++) chosen.push({ item: images[(splitImageIndex + i) % images.length], index: i, step: 1 });
+    for (let i = 0; i < imageCount; i++) {
+      const index = (splitImageIndex + i) % images.length;
+      chosen.push({ item: images[index], index, step: imageCount });
+    }
     const videoStart = Math.max(0, videos.findIndex(i => i.url === companionCurrent?.url));
     for (let i = 0; i < videoCount; i++) chosen.push({ item: videos[(videoStart + i) % videos.length], index: (videoStart + i) % videos.length, step: videoCount });
     try {
+      const imagePlaylist = images.map(mediaItem => {
+        const mediaPath = desktop && mediaItem.file ? desktop.getPathForFile(mediaItem.file) : '';
+        return { path: mediaPath, url: mediaPath ? '' : mediaItem.url, name: mediaItem.name };
+      });
+      const videoPlaylist = videos.map(mediaItem => {
+        const mediaPath = desktop && mediaItem.file ? desktop.getPathForFile(mediaItem.file) : '';
+        return { path: mediaPath, url: mediaPath ? '' : mediaItem.url, name: mediaItem.name };
+      });
       const media = chosen.map(({ item, index, step }) => {
         const path = desktop && item.file ? desktop.getPathForFile(item.file) : '';
-        const videoPlaylist = item.type === 'video' ? videos.map(video => {
-          const videoPath = desktop && video.file ? desktop.getPathForFile(video.file) : '';
-          return { path: videoPath, url: videoPath ? '' : video.url };
-        }) : [];
         const dimensions = item.type === 'image' ? imageDimensions(item) :
           (item.url === companionCurrent?.url && $('#companionVideo').videoWidth ? { width: $('#companionVideo').videoWidth, height: $('#companionVideo').videoHeight } : null);
-        return { type: item.type, name: item.name, path, url: path ? '' : item.url, videoPlaylist, videoIndex: index, videoStep: step, width: dimensions?.width || 0, height: dimensions?.height || 0 };
+        return { type: item.type, name: item.name, path, url: path ? '' : item.url, videoIndex: index, videoStep: step, autoplay: splitAuto, random: splitRandom, interval: splitInterval, width: dimensions?.width || 0, height: dimensions?.height || 0 };
       });
       if (desktop) {
         await Promise.all(media.map(async item => {
           const dimensions = await probeMediaDimensions(item);
           if (dimensions) { item.width = dimensions.width; item.height = dimensions.height; }
         }));
-        const result = await desktop.openMediaWindows(media);
+        const result = await desktop.openMediaWindows(media, { images: imagePlaylist, videos: videoPlaylist });
         toast(`Opened ${result.opened} media windows`);
         return;
       }
@@ -724,17 +742,30 @@
         popupUrl.searchParams.set('type', item.type);
         popupUrl.searchParams.set('name', item.name);
         popupUrl.searchParams.set('src', item.url);
-        if (item.type === 'video') {
-          popupUrl.searchParams.set('playlist', JSON.stringify(item.videoPlaylist.map(video => video.url)));
-          popupUrl.searchParams.set('index', String(item.videoIndex));
-          popupUrl.searchParams.set('step', String(item.videoStep));
-        }
+        popupUrl.searchParams.set('index', String(item.videoIndex));
+        popupUrl.searchParams.set('step', String(item.videoStep));
+        popupUrl.searchParams.set('autoplay', String(item.autoplay));
+        popupUrl.searchParams.set('random', String(item.random));
+        popupUrl.searchParams.set('interval', String(item.interval));
         let width = item.type === 'video' ? 1100 : 900, height = item.type === 'video' ? 720 : 900;
         if (item.type === 'image' && $('#pipAutoResize').checked) {
           const dims = imageDimensions(item);
           if (dims) ({ width, height } = pipDimensions(dims.width, dims.height));
         }
-        if (window.open(popupUrl.href, `media-viewer-${Date.now()}-${i}`, `popup=yes,width=${width},height=${height},resizable=yes`)) opened++;
+        const popup = window.open(popupUrl.href, `media-viewer-${Date.now()}-${i}`, `popup=yes,width=${width},height=${height},resizable=yes`);
+        if (popup) {
+          opened++; mediaPopupWindows.push(popup);
+          const childPlaylist = item.type === 'image' ? imagePlaylist : videoPlaylist;
+          const deliverState = () => {
+            if (popup.closed) return true;
+            if (typeof popup.mediaViewerSetPlaylist !== 'function') return false;
+            popup.mediaViewerSetPlaylist(childPlaylist.map(entry => ({ src: entry.url, name: entry.name })));
+            popup.mediaViewerSetAutoplay({ enabled: splitAuto, random: splitRandom, interval: splitInterval });
+            return true;
+          };
+          const poll = setInterval(() => { if (deliverState()) clearInterval(poll); }, 100);
+          setTimeout(() => clearInterval(poll), 10000);
+        }
       });
       if (opened === media.length) toast(`Opened ${opened} media windows`);
       else if (opened) toast(`Opened ${opened} of ${media.length}; allow popups for this site`);
@@ -756,7 +787,7 @@
     $('#companionToggle').setAttribute('aria-pressed', String(on));
     $('#companionToggle').textContent = on ? 'Hide video' : 'Video + images';
     if (on) { syncCompanion(); if (companionCurrent) $('#companionVideo').play().catch(() => {}); renderSplitImage(); scheduleSplitAutoplay(); }
-    else { splitAuto = false; clearTimeout(splitTimer); $('#splitPlay').setAttribute('aria-pressed', 'false'); $('#splitPlay').textContent = 'Play'; $('#companionVideo').pause(); renderWall(); }
+    else { splitAuto = false; clearTimeout(splitTimer); syncMediaWindowAutoplay(); $('#splitPlay').setAttribute('aria-pressed', 'false'); $('#splitPlay').textContent = 'Play'; $('#companionVideo').pause(); renderWall(); }
   }
   function renderWall() {
     if (!wallMode || companionOn) return;
@@ -1205,10 +1236,10 @@
   $('#splitNext').onclick = () => stepSplitImage(1);
   $('#splitPlay').onclick = toggleSplitAutoplay;
   $('#splitRandom').checked = splitRandom;
-  $('#splitRandom').onchange = e => { splitRandom = e.target.checked; store.set('mv.splitRandom', splitRandom); };
+  $('#splitRandom').onchange = e => { splitRandom = e.target.checked; store.set('mv.splitRandom', splitRandom); syncMediaWindowAutoplay(); };
   $('#splitInterval').value = String(splitInterval);
   if ($('#splitInterval').value !== String(splitInterval)) { splitInterval = 5; $('#splitInterval').value = '5'; }
-  $('#splitInterval').onchange = e => { splitInterval = Number(e.target.value); store.set('mv.splitInterval', splitInterval); scheduleSplitAutoplay(); };
+  $('#splitInterval').onchange = e => { splitInterval = Number(e.target.value); store.set('mv.splitInterval', splitInterval); syncMediaWindowAutoplay(); scheduleSplitAutoplay(); };
   $('#pipAutoResize').checked = store.get('mv.pipAutoResize', false);
   $('#pipAutoResize').onchange = e => {
     store.set('mv.pipAutoResize', e.target.checked);
