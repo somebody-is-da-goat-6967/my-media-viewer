@@ -232,7 +232,9 @@
       <label id="pipAutoResizeLabel" title="Size each image window to fit its image, within the screen size"><input type="checkbox" id="pipAutoResize"> Fit windows to images</label>
       <label class="slot-label" title="Number of separate image windows to open">Images <select id="pipImageSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
       <label class="slot-label" title="Number of separate video windows to open">Videos <select id="pipVideoSlots"><option value="0">0</option><option value="1" selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
+      <select id="desktopArea" aria-label="Window screen area" title="Choose where local media windows fill the screen" hidden><option value="full">Full screen</option><option value="left">Left half</option><option value="right">Right half</option><option value="center">Remaining area</option></select>
       <button id="mediaWindowsBtn" type="button" title="Open every selected image and video in its own window">Open as windows</button>
+      <button id="webPipBtn" type="button" title="Open selected media in a browser-chrome-free PiP window" hidden>Open PiP</button>
       <button id="addImageWindow" type="button" title="Open the next image in a new window">Add image window</button>
       <button id="addVideoWindow" type="button" title="Open the next video in a new window">Add video window</button>
       <select id="splitInterval" aria-label="Image autoplay interval" title="Time per image">
@@ -734,7 +736,7 @@
           const dimensions = await probeMediaDimensions(item);
           if (dimensions) { item.width = dimensions.width; item.height = dimensions.height; }
         }));
-        const result = await desktop.openMediaWindows(media, { images: imagePlaylist, videos: videoPlaylist });
+        const result = await desktop.openMediaWindows(media, { images: imagePlaylist, videos: videoPlaylist }, $('#desktopArea').value);
         toast(`Opened ${result.opened} media windows`);
         return;
       }
@@ -773,6 +775,43 @@
       else if (opened) toast(`Opened ${opened} of ${media.length}; allow popups for this site`);
       else toast('Popups are blocked; allow popups for this site and try again');
     } catch { toast('Could not open the media windows'); }
+  }
+  async function openWebPip() {
+    if (!('documentPictureInPicture' in window)) { toast('Document PiP is unavailable in this browser'); return; }
+    const images = splitImageItems(), videos = companionItems();
+    const imageCount = Math.min(Number($('#pipImageSlots').value) || 0, images.length);
+    const videoCount = Math.min(Number($('#pipVideoSlots').value) || 0, videos.length);
+    if (!imageCount && !videoCount) { toast('Choose at least one image or video window'); return; }
+    try {
+      const pip = await documentPictureInPicture.requestWindow({ width: Math.min(screen.availWidth * .9, 1500), height: Math.min(screen.availHeight * .85, 1000) });
+      const doc = pip.document;
+      doc.title = 'Media PiP';
+      const style = doc.createElement('style');
+      style.textContent = 'html,body{width:100%;height:100%;margin:0;background:#050607;overflow:hidden}main{width:100%;height:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));grid-auto-rows:minmax(180px,1fr);gap:2px}.pane{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) 30px;background:#111}img,video{width:100%;height:100%;min-width:0;min-height:0;object-fit:contain}.label{height:30px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;font:12px system-ui;background:#17191d;padding:6px}';
+      doc.head.append(style);
+      const grid = doc.createElement('main'); doc.body.append(grid);
+      const imageWindows = [];
+      for (let i = 0; i < imageCount; i++) {
+        const pane = doc.createElement('section'); pane.className = 'pane';
+        const image = doc.createElement('img'); const label = doc.createElement('div'); label.className = 'label';
+        pane.append(image, label); grid.append(pane); imageWindows.push({ image, label, offset: i });
+      }
+      for (let i = 0; i < videoCount; i++) {
+        const item = videos[(Math.max(0, videos.findIndex(v => v.url === companionCurrent?.url)) + i) % videos.length];
+        const pane = doc.createElement('section'); pane.className = 'pane';
+        const video = doc.createElement('video'); video.src = item.url; video.controls = true; video.autoplay = true; video.muted = true; video.loop = $('#companionLoop').checked;
+        const label = doc.createElement('div'); label.className = 'label'; label.textContent = item.name;
+        pane.append(video, label); grid.append(pane);
+      }
+      const render = () => imageWindows.forEach(slot => {
+        const items = splitImageItems(); if (!items.length) return;
+        let index = (splitImageIndex + slot.offset) % items.length;
+        if (splitRandom) index = Math.floor(Math.random() * items.length);
+        const item = items[index]; slot.image.src = item.url; slot.image.alt = item.name; slot.label.textContent = item.name;
+      });
+      render(); const timer = setInterval(render, splitInterval * 1000);
+      pip.addEventListener('pagehide', () => clearInterval(timer), { once: true });
+    } catch { toast('Could not open the PiP window'); }
   }
   function setCompanion(on) {
     if (on && !wallMode) setMode(true);
@@ -1231,6 +1270,9 @@
   $('#localFilesBtn').onclick = () => $('#localFiles').click();
   $('#localFiles').onchange = e => { loadLocalFiles(e.target.files); e.target.value = ''; };
   $('#mediaWindowsBtn').onclick = openSeparateMediaWindows;
+  $('#desktopArea').hidden = !window.mediaViewerDesktop;
+  $('#webPipBtn').hidden = !!window.mediaViewerDesktop || !('documentPictureInPicture' in window);
+  $('#webPipBtn').onclick = openWebPip;
   $('#addImageWindow').onclick = () => openSeparateMediaWindows('image');
   $('#addVideoWindow').onclick = () => openSeparateMediaWindows('video');
   $('#companionNext').onclick = advanceCompanion;

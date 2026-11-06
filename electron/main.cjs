@@ -84,10 +84,18 @@ function mediaSource(item) {
   throw new Error('Unsupported media URL');
 }
 
-ipcMain.handle('media:open-windows', async (event, items, playlists = {}) => {
+ipcMain.handle('media:open-windows', async (event, items, playlists = {}, areaMode = 'full') => {
   if (!Array.isArray(items) || items.length < 1 || items.length > 8) throw new Error('Choose between 1 and 8 media windows');
   const opened = [];
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const display = { ...screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea };
+  if (areaMode === 'left' || areaMode === 'right') {
+    display.width = Math.floor(display.width / 2);
+    if (areaMode === 'right') display.x += display.width;
+  } else if (areaMode === 'center') {
+    const marginX = Math.floor(display.width * .15), marginY = Math.floor(display.height * .12);
+    display.x += marginX; display.y += marginY;
+    display.width -= marginX * 2; display.height -= marginY * 2;
+  }
   const columns = Math.ceil(Math.sqrt(items.length));
   const rows = Math.ceil(items.length / columns);
   const cellWidth = display.width / columns;

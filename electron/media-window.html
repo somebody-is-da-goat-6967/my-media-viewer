@@ -7,12 +7,13 @@
 <style>
   * { box-sizing: border-box; }
   html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #08090b; color: #f2f1ed; font: 13px/1.4 system-ui, sans-serif; }
-  body { display: flex; flex-direction: column; }
-  header { flex: 0 0 auto; min-height: 42px; padding: 5px 10px; display: flex; align-items: center; gap: 10px; overflow: hidden; background: #17191d; color: #aeb2bb; -webkit-app-region: drag; }
+  body { position: relative; }
+  header { position: absolute; z-index: 3; inset: 0 0 auto; min-height: 42px; padding: 5px 10px; display: flex; align-items: center; gap: 10px; overflow: hidden; background: rgba(23,25,29,.9); color: #aeb2bb; -webkit-app-region: drag; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+  body:hover header, body:focus-within header { opacity: 1; pointer-events: auto; }
   #name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #loopControl { display: none; align-items: center; gap: 5px; white-space: nowrap; }
   button { -webkit-app-region: no-drag; border: 1px solid #363a43; border-radius: 6px; padding: 5px 11px; background: #22252b; color: #fff; cursor: pointer; }
-  main { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: grid; place-items: center; }
+  main { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; display: grid; place-items: center; }
   img, video { display: block; min-width: 0; min-height: 0; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; background: #050607; }
 </style>
 </head>

@@ -4,8 +4,8 @@ contextBridge.exposeInMainWorld('mediaViewerDesktop', {
   getPathForFile(file) {
     return webUtils.getPathForFile(file);
   },
-  openMediaWindows(items, playlists) {
-    return ipcRenderer.invoke('media:open-windows', items, playlists);
+  openMediaWindows(items, playlists, area) {
+    return ipcRenderer.invoke('media:open-windows', items, playlists, area);
   },
   setMediaAutoplay(config) {
     ipcRenderer.send('media:set-image-autoplay', config);
